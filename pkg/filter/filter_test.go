@@ -1307,8 +1307,3 @@ func TestParseExpression_IncorrectArgTypes(t *testing.T) {
 		t.Fatalf("Expected error for non-string 'property' field")
 	}
 }
-
-// Helper function to compare two maps for equality using reflect.DeepEqual.
-func equalMaps(a, b map[string]interface{}) bool {
-	return reflect.DeepEqual(a, b)
-}

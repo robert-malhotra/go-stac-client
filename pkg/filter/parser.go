@@ -4,466 +4,257 @@ package filter
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"strings"
 	"time"
+
+	"github.com/twpayne/go-geom"
+	"github.com/twpayne/go-geom/encoding/geojson"
 )
 
-// ParseExpression parses a JSON byte slice into an Expression
+type expressionWrapper struct {
+	Op   string            `json:"op"`
+	Args []json.RawMessage `json:"args"`
+}
+
 func ParseExpression(data []byte) (Expression, error) {
-	var raw map[string]interface{}
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, err
+	var wrapper expressionWrapper
+	if err := json.Unmarshal(data, &wrapper); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal expression: %w", err)
 	}
-	return parseExpressionMap(raw)
+
+	op := Operator(wrapper.Op)
+	switch op {
+	case OpAnd, OpOr, OpNot:
+		return parseLogical(op, wrapper.Args)
+	case OpEqual, OpNotEqual, OpLessThan, OpLessOrEqual, OpGreaterThan, OpGreaterOrEqual:
+		return parseComparison(op, wrapper.Args)
+	case OpBetween:
+		return parseBetween(wrapper.Args)
+	case OpLike:
+		return parseLike(wrapper.Args)
+	case OpIn:
+		return parseIn(wrapper.Args)
+	case OpSIntersects:
+		return parseSIntersects(wrapper.Args)
+	case OpTIntersects:
+		return parseTIntersects(wrapper.Args)
+	case OpIsNull:
+		return parseIsNull(wrapper.Args)
+	default:
+		if isFunction(string(op)) {
+			return parseFunction(string(op), wrapper.Args)
+		}
+		return nil, fmt.Errorf("unsupported operator: %s", op)
+	}
 }
 
-func parseExpressionMap(raw map[string]interface{}) (Expression, error) {
-	exprType, ok := raw["op"].(string)
-	if !ok {
-		return nil, errors.New("missing or invalid 'op' field")
-	}
-	exprType = strings.ToLower(exprType)
-
-	switch exprType {
-	case "and":
-		args, ok := raw["args"].([]interface{})
-		if !ok {
-			return nil, errors.New("'args' must be an array for 'and'")
-		}
-		var children []Expression
-		for _, arg := range args {
-			argMap, ok := arg.(map[string]interface{})
-			if !ok {
-				return nil, errors.New("invalid child expression in 'and'")
-			}
-			expr, err := parseExpressionMap(argMap)
-			if err != nil {
-				return nil, err
-			}
-			children = append(children, expr)
-		}
-		return And{Children: children}, nil
-
-	case "or":
-		args, ok := raw["args"].([]interface{})
-		if !ok {
-			return nil, errors.New("'args' must be an array for 'or'")
-		}
-		var children []Expression
-		for _, arg := range args {
-			argMap, ok := arg.(map[string]interface{})
-			if !ok {
-				return nil, errors.New("invalid child expression in 'or'")
-			}
-			expr, err := parseExpressionMap(argMap)
-			if err != nil {
-				return nil, err
-			}
-			children = append(children, expr)
-		}
-		return Or{Children: children}, nil
-
-	case "not":
-		args, ok := raw["args"].([]interface{})
-		if !ok || len(args) != 1 {
-			return nil, errors.New("'args' must be an array with one element for 'not'")
-		}
-		childMap, ok := args[0].(map[string]interface{})
-		if !ok {
-			return nil, errors.New("invalid child expression in 'not'")
-		}
-		childExpr, err := parseExpressionMap(childMap)
+func parseLogical(op Operator, args []json.RawMessage) (Expression, error) {
+	children := make([]Expression, 0, len(args))
+	for _, arg := range args {
+		child, err := ParseExpression(arg)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse logical child: %w", err)
 		}
-		return Not{Child: childExpr}, nil
-
-	case "=":
-		return parsePropertyComparison(raw, "=")
-
-	case "<>":
-		return parsePropertyComparison(raw, "<>")
-
-	case "<":
-		return parsePropertyComparison(raw, "<")
-
-	case "<=":
-		return parsePropertyComparison(raw, "<=")
-
-	case ">":
-		return parsePropertyComparison(raw, ">")
-
-	case ">=":
-		return parsePropertyComparison(raw, ">=")
-
-	case "between":
-		return parseBetween(raw)
-
-	case "like":
-		return parseLike(raw)
-
-	case "in":
-		return parseIn(raw)
-
-	case "s_intersects":
-		return parseSIntersects(raw)
-
-	case "t_intersects":
-		return parseTIntersects(raw)
-
-	case "isnull":
-		return parseIsNull(raw)
-
-	default:
-		// Check if it's a function
-		if isFunction(exprType) {
-			return parseFunction(exprType, raw)
-		}
-		// Check for property-property comparison
-		if isPropertyPropertyComparison(exprType) {
-			return parsePropertyPropertyComparison(raw, exprType)
-		}
-		return nil, fmt.Errorf("unsupported or unknown operator: %s", exprType)
+		children = append(children, child)
 	}
+
+	return Logical{Op: op, Children: children}, nil
 }
 
-func parsePropertyComparison(raw map[string]interface{}, operator string) (Expression, error) {
-	args, ok := raw["args"].([]interface{})
-	if !ok || len(args) != 2 {
-		return nil, fmt.Errorf("operator '%s' requires exactly two arguments", operator)
+// func parseComparison(op Operator, args []json.RawMessage) (Expression, error) {
+// 	if len(args) != 2 {
+// 		return nil, fmt.Errorf("comparison requires exactly two arguments")
+// 	}
+
+// 	var prop property
+// 	if err := json.Unmarshal(args[0], &prop); err != nil {
+// 		return nil, fmt.Errorf("failed to unmarshal property: %w", err)
+// 	}
+
+// 	var value interface{}
+// 	if err := json.Unmarshal(args[1], &value); err != nil {
+// 		return nil, fmt.Errorf("failed to unmarshal value: %w", err)
+// 	}
+
+// 	return Comparison{Op: op, Property: prop.Property, Value: value}, nil
+// }
+
+func parseBetween(args []json.RawMessage) (Expression, error) {
+	if len(args) != 3 {
+		return nil, fmt.Errorf("between requires exactly three arguments")
 	}
 
-	propMap, ok := args[0].(map[string]interface{})
-	if !ok {
-		return nil, errors.New("first argument must be a property object")
-	}
-	property, ok := propMap["property"].(string)
-	if !ok {
-		return nil, errors.New("'property' field must be a string")
+	var prop property
+	if err := json.Unmarshal(args[0], &prop); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal property: %w", err)
 	}
 
-	value := args[1]
-
-	// Check if the second argument is also a property
-	if valueMap, ok := value.(map[string]interface{}); ok {
-		if prop2, exists := valueMap["property"]; exists {
-			prop2Str, ok := prop2.(string)
-			if !ok {
-				return nil, errors.New("'property2' field must be a string")
-			}
-			return PropertyPropertyComparison{
-				Property1: property,
-				Operator:  operator,
-				Property2: prop2Str,
-			}, nil
-		}
+	var lower, upper interface{}
+	if err := json.Unmarshal(args[1], &lower); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal lower bound: %w", err)
+	}
+	if err := json.Unmarshal(args[2], &upper); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal upper bound: %w", err)
 	}
 
-	// Otherwise, return a standard comparison expression
-	switch operator {
-	case "=":
-		return PropertyIsEqualTo{
-			Property: property,
-			Value:    value,
-		}, nil
-	case "<>":
-		return PropertyIsNotEqualTo{
-			Property: property,
-			Value:    value,
-		}, nil
-	case "<":
-		return PropertyIsLessThan{
-			Property: property,
-			Value:    value,
-		}, nil
-	case "<=":
-		return PropertyIsLessThanOrEqualTo{
-			Property: property,
-			Value:    value,
-		}, nil
-	case ">":
-		return PropertyIsGreaterThan{
-			Property: property,
-			Value:    value,
-		}, nil
-	case ">=":
-		return PropertyIsGreaterThanOrEqualTo{
-			Property: property,
-			Value:    value,
-		}, nil
-	default:
-		return nil, fmt.Errorf("unsupported operator: %s", operator)
-	}
+	return Between{Property: prop.Property, Lower: lower, Upper: upper}, nil
 }
 
-func parseBetween(raw map[string]interface{}) (Expression, error) {
-	args, ok := raw["args"].([]interface{})
-	if !ok || len(args) != 3 {
-		return nil, errors.New("operator 'between' requires exactly three arguments")
+func parseLike(args []json.RawMessage) (Expression, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("like requires exactly two arguments")
 	}
 
-	propMap, ok := args[0].(map[string]interface{})
-	if !ok {
-		return nil, errors.New("first argument must be a property object")
-	}
-	property, ok := propMap["property"].(string)
-	if !ok {
-		return nil, errors.New("'property' field must be a string")
+	var prop property
+	if err := json.Unmarshal(args[0], &prop); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal property: %w", err)
 	}
 
-	lower := args[1]
-	upper := args[2]
+	var pattern string
+	if err := json.Unmarshal(args[1], &pattern); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal pattern: %w", err)
+	}
 
-	return Between{
-		Property: property,
-		Lower:    lower,
-		Upper:    upper,
-	}, nil
+	return Like{Property: prop.Property, Pattern: pattern}, nil
 }
 
-func parseLike(raw map[string]interface{}) (Expression, error) {
-	args, ok := raw["args"].([]interface{})
-	if !ok || len(args) != 2 {
-		return nil, errors.New("operator 'like' requires exactly two arguments")
+func parseIn(args []json.RawMessage) (Expression, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("in requires exactly two arguments")
 	}
 
-	propMap, ok := args[0].(map[string]interface{})
-	if !ok {
-		return nil, errors.New("first argument must be a property object")
-	}
-	property, ok := propMap["property"].(string)
-	if !ok {
-		return nil, errors.New("'property' field must be a string")
+	var prop property
+	if err := json.Unmarshal(args[0], &prop); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal property: %w", err)
 	}
 
-	pattern, ok := args[1].(string)
-	if !ok {
-		return nil, errors.New("'pattern' must be a string")
+	var values []interface{}
+	if err := json.Unmarshal(args[1], &values); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal values: %w", err)
 	}
 
-	return Like{
-		Property: property,
-		Pattern:  pattern,
-	}, nil
+	return In{Property: prop.Property, Values: values}, nil
 }
 
-func parseIn(raw map[string]interface{}) (Expression, error) {
-	args, ok := raw["args"].([]interface{})
-	if !ok || len(args) != 2 {
-		return nil, errors.New("operator 'in' requires exactly two arguments")
+func parseSIntersects(args []json.RawMessage) (Expression, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("s_intersects requires exactly two arguments")
 	}
 
-	propMap, ok := args[0].(map[string]interface{})
-	if !ok {
-		return nil, errors.New("first argument must be a property object")
-	}
-	property, ok := propMap["property"].(string)
-	if !ok {
-		return nil, errors.New("'property' field must be a string")
+	var prop property
+	if err := json.Unmarshal(args[0], &prop); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal property: %w", err)
 	}
 
-	values, ok := args[1].([]interface{})
-	if !ok {
-		return nil, errors.New("'values' must be an array")
+	var geom geom.T
+	if err := geojson.Unmarshal(args[1], &geom); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal geometry: %w", err)
 	}
 
-	return In{
-		Property: property,
-		Values:   values,
-	}, nil
+	return SIntersects{Property: prop.Property, Geometry: geom}, nil
 }
 
-func parseSIntersects(raw map[string]interface{}) (Expression, error) {
-	args, ok := raw["args"].([]interface{})
-	if !ok || len(args) != 2 {
-		return nil, errors.New("operator 's_intersects' requires exactly two arguments")
+func parseTIntersects(args []json.RawMessage) (Expression, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("t_intersects requires exactly two arguments")
 	}
 
-	propMap, ok := args[0].(map[string]interface{})
-	if !ok {
-		return nil, errors.New("first argument must be a property object")
-	}
-	property, ok := propMap["property"].(string)
-	if !ok {
-		return nil, errors.New("'property' field must be a string")
+	var prop property
+	if err := json.Unmarshal(args[0], &prop); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal property: %w", err)
 	}
 
-	geometryMap, ok := args[1].(map[string]interface{})
-	if !ok {
-		return nil, errors.New("second argument must be a geometry object")
+	var intervalWrapper struct {
+		Interval []string `json:"interval"`
+	}
+	if err := json.Unmarshal(args[1], &intervalWrapper); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal interval: %w", err)
 	}
 
-	geometry, err := parseGeoJSONGeometry(geometryMap)
+	if len(intervalWrapper.Interval) != 2 {
+		return nil, fmt.Errorf("interval must contain exactly two timestamps")
+	}
+
+	start, err := time.Parse(time.RFC3339, intervalWrapper.Interval[0])
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse start time: %w", err)
 	}
 
-	return SIntersects{
-		Property: property,
-		Geometry: geometry,
-	}, nil
-}
-
-func parseTIntersects(raw map[string]interface{}) (Expression, error) {
-	args, ok := raw["args"].([]interface{})
-	if !ok || len(args) != 2 {
-		return nil, errors.New("operator 't_intersects' requires exactly two arguments")
-	}
-
-	propMap, ok := args[0].(map[string]interface{})
-	if !ok {
-		return nil, errors.New("first argument must be a property object")
-	}
-	property, ok := propMap["property"].(string)
-	if !ok {
-		return nil, errors.New("'property' field must be a string")
-	}
-
-	intervalMap, ok := args[1].(map[string]interface{})
-	if !ok {
-		return nil, errors.New("second argument must be an interval object")
-	}
-
-	interval, err := parseTimeInterval(intervalMap)
+	end, err := time.Parse(time.RFC3339, intervalWrapper.Interval[1])
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse end time: %w", err)
 	}
 
 	return TIntersects{
-		Property: property,
-		Interval: interval,
+		Property: prop.Property,
+		Interval: TimeInterval{Start: start, End: end},
 	}, nil
 }
 
-func parseIsNull(raw map[string]interface{}) (Expression, error) {
-	args, ok := raw["args"].([]interface{})
-	if !ok || len(args) != 1 {
-		return nil, errors.New("operator 'isNull' requires exactly one argument")
+func parseIsNull(args []json.RawMessage) (Expression, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("isNull requires exactly one argument")
 	}
 
-	propMap, ok := args[0].(map[string]interface{})
-	if !ok {
-		return nil, errors.New("argument must be a property object")
-	}
-	property, ok := propMap["property"].(string)
-	if !ok {
-		return nil, errors.New("'property' field must be a string")
+	var prop property
+	if err := json.Unmarshal(args[0], &prop); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal property: %w", err)
 	}
 
-	return IsNull{
-		Property: property,
-	}, nil
+	return IsNull{Property: prop.Property}, nil
 }
 
-func parseFunction(name string, raw map[string]interface{}) (Expression, error) {
-	args, ok := raw["args"].([]interface{})
-	if !ok {
-		return nil, errors.New("function 'args' must be an array")
+func parseFunction(name string, args []json.RawMessage) (Expression, error) {
+	var parsedArgs []interface{}
+	for _, arg := range args {
+		var value interface{}
+		if err := json.Unmarshal(arg, &value); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal function argument: %w", err)
+		}
+		parsedArgs = append(parsedArgs, value)
 	}
-	return Function{
-		Name: name,
-		Args: args,
-	}, nil
+
+	return Function{Name: name, Args: parsedArgs}, nil
 }
 
-func parsePropertyPropertyComparison(raw map[string]interface{}, operator string) (Expression, error) {
-	args, ok := raw["args"].([]interface{})
-	if !ok || len(args) != 2 {
-		return nil, fmt.Errorf("property-property comparison '%s' requires exactly two arguments", operator)
-	}
-
-	prop1Map, ok := args[0].(map[string]interface{})
-	if !ok {
-		return nil, errors.New("first argument must be a property object")
-	}
-	property1, ok := prop1Map["property"].(string)
-	if !ok {
-		return nil, errors.New("'property1' field must be a string")
-	}
-
-	prop2Map, ok := args[1].(map[string]interface{})
-	if !ok {
-		return nil, errors.New("second argument must be a property object")
-	}
-	property2, ok := prop2Map["property"].(string)
-	if !ok {
-		return nil, errors.New("'property2' field must be a string")
-	}
-
-	return PropertyPropertyComparison{
-		Property1: property1,
-		Operator:  operator,
-		Property2: property2,
-	}, nil
+type property struct {
+	Property string `json:"property"`
 }
 
-func parseGeoJSONGeometry(raw map[string]interface{}) (GeoJSONGeometry, error) {
-	geoType, ok := raw["type"].(string)
-	if !ok {
-		return GeoJSONGeometry{}, errors.New("geometry must have a 'type' field")
+func parseProperty(data json.RawMessage) (string, error) {
+	var prop property
+	if err := json.Unmarshal(data, &prop); err != nil {
+		return "", fmt.Errorf("failed to unmarshal property: %w", err)
 	}
-
-	coordinates, ok := raw["coordinates"]
-	if !ok {
-		return GeoJSONGeometry{}, errors.New("geometry must have 'coordinates'")
+	if prop.Property == "" {
+		return "", fmt.Errorf("failed to unmarshal property: missing 'property' field")
 	}
-
-	return GeoJSONGeometry{
-		Type:        geoType,
-		Coordinates: coordinates,
-	}, nil
+	return prop.Property, nil
 }
 
-func parseTimeInterval(raw map[string]interface{}) (TimeInterval, error) {
-	interval, ok := raw["interval"].([]interface{})
-	if !ok || len(interval) != 2 {
-		return TimeInterval{}, errors.New("interval must be an array of two elements")
+// Update parseComparisonExpression to use parseProperty
+func parseComparison(op Operator, args []json.RawMessage) (Expression, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("comparison requires exactly two arguments")
 	}
 
-	startStr, ok := interval[0].(string)
-	if !ok {
-		return TimeInterval{}, errors.New("interval start must be a string")
-	}
-
-	endStr, ok := interval[1].(string)
-	if !ok {
-		return TimeInterval{}, errors.New("interval end must be a string")
-	}
-
-	start, err := time.Parse(time.RFC3339, startStr)
+	prop, err := parseProperty(args[0])
 	if err != nil {
-		return TimeInterval{}, fmt.Errorf("invalid 'start' time format: %v", err)
+		return nil, err
 	}
 
-	end, err := time.Parse(time.RFC3339, endStr)
-	if err != nil {
-		return TimeInterval{}, fmt.Errorf("invalid 'end' time format: %v", err)
+	var value interface{}
+	if err := json.Unmarshal(args[1], &value); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal value: %w", err)
 	}
 
-	return TimeInterval{
-		Start: start,
-		End:   end,
-	}, nil
+	return Comparison{Op: op, Property: prop, Value: value}, nil
 }
 
 func isFunction(op string) bool {
-	functions := []string{"casei", "accenti"}
-	for _, f := range functions {
-		if op == f {
-			return true
-		}
+	functions := map[string]bool{
+		"casei":   true,
+		"accenti": true,
 	}
-	return false
-}
-
-func isPropertyPropertyComparison(op string) bool {
-	comparisons := []string{"=", "<>", "<", "<=", ">", ">="}
-	for _, c := range comparisons {
-		if op == c {
-			return true
-		}
-	}
-	return false
+	return functions[op]
 }

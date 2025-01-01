@@ -1,157 +1,208 @@
-// pkg/filter/models.go
-
 package filter
 
 import (
 	"time"
+
+	"github.com/twpayne/go-geom"
 )
 
-// Base interface for all CQL2 expressions
+// Operator represents any filter operator
+type Operator string
+
+// Define all operators in one place
+const (
+	// Logical operators
+	OpAnd Operator = "and"
+	OpOr  Operator = "or"
+	OpNot Operator = "not"
+
+	// Comparison operators
+	OpEqual          Operator = "="
+	OpNotEqual       Operator = "<>"
+	OpLessThan       Operator = "<"
+	OpLessOrEqual    Operator = "<="
+	OpGreaterThan    Operator = ">"
+	OpGreaterOrEqual Operator = ">="
+	OpBetween        Operator = "between"
+	OpLike           Operator = "like"
+	OpIn             Operator = "in"
+	OpIsNull         Operator = "isNull"
+
+	// Spatial and temporal operators
+	OpSIntersects Operator = "s_intersects"
+	OpTIntersects Operator = "t_intersects"
+)
+
+// Expression interface represents any filter expression
 type Expression interface {
-	ExpressionType() string
+	Type() Operator
 }
 
-// Logical Operators
+// Standard expression types
+type (
+	Logical struct {
+		Op       Operator
+		Children []Expression
+	}
 
-type And struct {
-	Children []Expression `json:"children"`
-}
+	Comparison struct {
+		Op       Operator
+		Property string
+		Value    interface{}
+	}
 
-func (a And) ExpressionType() string { return "and" }
+	Between struct {
+		Property string
+		Lower    interface{}
+		Upper    interface{}
+	}
 
-type Or struct {
-	Children []Expression `json:"children"`
-}
+	Like struct {
+		Property string
+		Pattern  string
+	}
 
-func (o Or) ExpressionType() string { return "or" }
+	In struct {
+		Property string
+		Values   []interface{}
+	}
 
-type Not struct {
-	Child Expression `json:"child"`
-}
+	IsNull struct {
+		Property string
+	}
 
-func (n Not) ExpressionType() string { return "not" }
+	Function struct {
+		Name string
+		Args []interface{}
+	}
 
-// Comparison Operators
+	SIntersects struct {
+		Property string
+		Geometry geom.T
+	}
 
-type PropertyIsEqualTo struct {
-	Property string      `json:"property"`
-	Value    interface{} `json:"value"`
-}
+	TIntersects struct {
+		Property string
+		Interval TimeInterval
+	}
+)
 
-func (p PropertyIsEqualTo) ExpressionType() string { return "=" }
-
-type PropertyIsNotEqualTo struct {
-	Property string      `json:"property"`
-	Value    interface{} `json:"value"`
-}
-
-func (p PropertyIsNotEqualTo) ExpressionType() string { return "<>" }
-
-type PropertyIsLessThan struct {
-	Property string      `json:"property"`
-	Value    interface{} `json:"value"`
-}
-
-func (p PropertyIsLessThan) ExpressionType() string { return "<" }
-
-type PropertyIsLessThanOrEqualTo struct {
-	Property string      `json:"property"`
-	Value    interface{} `json:"value"`
-}
-
-func (p PropertyIsLessThanOrEqualTo) ExpressionType() string { return "<=" }
-
-type PropertyIsGreaterThan struct {
-	Property string      `json:"property"`
-	Value    interface{} `json:"value"`
-}
-
-func (p PropertyIsGreaterThan) ExpressionType() string { return ">" }
-
-type PropertyIsGreaterThanOrEqualTo struct {
-	Property string      `json:"property"`
-	Value    interface{} `json:"value"`
-}
-
-func (p PropertyIsGreaterThanOrEqualTo) ExpressionType() string { return ">=" }
-
-// Advanced Comparison Operators
-
-type Between struct {
-	Property string      `json:"property"`
-	Lower    interface{} `json:"lower"`
-	Upper    interface{} `json:"upper"`
-}
-
-func (b Between) ExpressionType() string { return "between" }
-
-type Like struct {
-	Property string `json:"property"`
-	Pattern  string `json:"pattern"`
-}
-
-func (l Like) ExpressionType() string { return "like" }
-
-type In struct {
-	Property string        `json:"property"`
-	Values   []interface{} `json:"values"`
-}
-
-func (i In) ExpressionType() string { return "in" }
-
-// Functions
-
-type Function struct {
-	Name string        `json:"function"`
-	Args []interface{} `json:"args"`
-}
-
-func (f Function) ExpressionType() string { return f.Name }
-
-// Spatial Operators
-
-type SIntersects struct {
-	Property string          `json:"property"`
-	Geometry GeoJSONGeometry `json:"geometry"`
-}
-
-func (s SIntersects) ExpressionType() string { return "s_intersects" }
-
-// Temporal Operators
-
-type TIntersects struct {
-	Property string       `json:"property"`
-	Interval TimeInterval `json:"interval"`
-}
-
-func (t TIntersects) ExpressionType() string { return "t_intersects" }
-
-// Property-Property Comparison
-
-type PropertyPropertyComparison struct {
-	Property1 string `json:"property1"`
-	Operator  string `json:"operator"`
-	Property2 string `json:"property2"`
-}
-
-func (ppc PropertyPropertyComparison) ExpressionType() string { return ppc.Operator }
-
-// IS NULL Operator
-
-type IsNull struct {
-	Property string `json:"property"`
-}
-
-func (i IsNull) ExpressionType() string { return "isNull" }
-
-// Utility Structures
-
-type GeoJSONGeometry struct {
-	Type        string      `json:"type"`
-	Coordinates interface{} `json:"coordinates"`
-}
-
+// TimeInterval represents a time range
 type TimeInterval struct {
-	Start time.Time `json:"start"`
-	End   time.Time `json:"end"`
+	Start time.Time
+	End   time.Time
+}
+
+// Type implementations
+func (e Logical) Type() Operator     { return e.Op }
+func (e Comparison) Type() Operator  { return e.Op }
+func (e Between) Type() Operator     { return OpBetween }
+func (e Like) Type() Operator        { return OpLike }
+func (e In) Type() Operator          { return OpIn }
+func (e IsNull) Type() Operator      { return OpIsNull }
+func (e Function) Type() Operator    { return Operator(e.Name) }
+func (e SIntersects) Type() Operator { return OpSIntersects }
+func (e TIntersects) Type() Operator { return OpTIntersects }
+
+// Builder provides a fluent interface for constructing expressions
+type Builder struct {
+	expr Expression
+}
+
+// NewBuilder creates a new filter builder
+func NewBuilder() *Builder {
+	return &Builder{}
+}
+
+// Build returns the final expression
+func (b *Builder) Build() Expression {
+	return b.expr
+}
+
+// Helper method to combine expressions with AND
+func (b *Builder) addWithAnd(expr Expression) *Builder {
+	if b.expr == nil {
+		b.expr = expr
+		return b
+	}
+
+	if curr, ok := b.expr.(Logical); ok && curr.Op == OpAnd {
+		curr.Children = append(curr.Children, expr)
+		b.expr = curr
+	} else {
+		b.expr = Logical{Op: OpAnd, Children: []Expression{b.expr, expr}}
+	}
+	return b
+}
+
+// Builder methods for each expression type
+func (b *Builder) And(exprs ...Expression) *Builder {
+	if len(exprs) == 0 {
+		return b
+	}
+	return b.addWithAnd(Logical{Op: OpAnd, Children: exprs})
+}
+
+func (b *Builder) Or(exprs ...Expression) *Builder {
+	if len(exprs) == 0 {
+		return b
+	}
+	orExpr := Logical{Op: OpOr, Children: exprs}
+	return b.addWithAnd(orExpr)
+}
+
+func (b *Builder) Not(expr Expression) *Builder {
+	return b.addWithAnd(Logical{Op: OpNot, Children: []Expression{expr}})
+}
+
+func (b *Builder) Equal(property string, value interface{}) *Builder {
+	return b.addWithAnd(Comparison{Op: OpEqual, Property: property, Value: value})
+}
+
+func (b *Builder) NotEqual(property string, value interface{}) *Builder {
+	return b.addWithAnd(Comparison{Op: OpNotEqual, Property: property, Value: value})
+}
+
+func (b *Builder) LessThan(property string, value interface{}) *Builder {
+	return b.addWithAnd(Comparison{Op: OpLessThan, Property: property, Value: value})
+}
+
+func (b *Builder) GreaterThan(property string, value interface{}) *Builder {
+	return b.addWithAnd(Comparison{Op: OpGreaterThan, Property: property, Value: value})
+}
+
+func (b *Builder) LessThanEqual(property string, value interface{}) *Builder {
+	return b.addWithAnd(Comparison{Op: OpLessOrEqual, Property: property, Value: value})
+}
+
+func (b *Builder) GreaterThanEqual(property string, value interface{}) *Builder {
+	return b.addWithAnd(Comparison{Op: OpGreaterOrEqual, Property: property, Value: value})
+}
+
+func (b *Builder) Between(property string, lower, upper interface{}) *Builder {
+	return b.addWithAnd(Between{Property: property, Lower: lower, Upper: upper})
+}
+
+func (b *Builder) Like(property, pattern string) *Builder {
+	return b.addWithAnd(Like{Property: property, Pattern: pattern})
+}
+
+func (b *Builder) In(property string, values []interface{}) *Builder {
+	return b.addWithAnd(In{Property: property, Values: values})
+}
+
+func (b *Builder) IsNull(property string) *Builder {
+	return b.addWithAnd(IsNull{Property: property})
+}
+
+func (b *Builder) Function(name string, args ...interface{}) *Builder {
+	return b.addWithAnd(Function{Name: name, Args: args})
+}
+
+func (b *Builder) SIntersects(property string, geometry geom.T) *Builder {
+	return b.addWithAnd(SIntersects{Property: property, Geometry: geometry})
+}
+
+func (b *Builder) TIntersects(property string, interval TimeInterval) *Builder {
+	return b.addWithAnd(TIntersects{Property: property, Interval: interval})
 }

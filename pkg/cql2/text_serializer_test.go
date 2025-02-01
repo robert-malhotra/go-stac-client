@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTextSerializer(t *testing.T) {
+func TestSerializeText(t *testing.T) {
 	tests := []struct {
 		name     string
 		expr     Expression
@@ -84,6 +84,60 @@ func TestTextSerializer(t *testing.T) {
 			},
 			expected: `(a > 5 AND b < 10) OR NOT (x = 1 OR y = 2)`,
 		},
+		{
+			name: "string literal",
+			expr: Comparison{
+				Operator: "=",
+				Left:     Property{Name: "name"},
+				Right:    Literal{Value: "Bob"},
+			},
+			expected: `name = "Bob"`,
+		},
+		{
+			name: "number literal",
+			expr: Comparison{
+				Operator: ">",
+				Left:     Property{Name: "score"},
+				Right:    Literal{Value: 99.0},
+			},
+			expected: `score > 99`,
+		},
+		{
+			name: "boolean literal",
+			expr: Comparison{
+				Operator: "=",
+				Left:     Property{Name: "active"},
+				Right:    Literal{Value: true},
+			},
+			expected: `active = TRUE`,
+		},
+		{
+			name: "complex expression (closed)",
+			expr: LogicalOperator{
+				Operator: "OR",
+				Left: LogicalOperator{
+					Operator: "AND",
+					Left: Comparison{
+						Operator: ">",
+						Left:     Property{Name: "a"},
+						Right:    Literal{Value: 10.0},
+					},
+					Right: Comparison{
+						Operator: "<",
+						Left:     Property{Name: "b"},
+						Right:    Literal{Value: 20.0},
+					},
+				},
+				Right: Not{
+					Expression: Comparison{
+						Operator: "=",
+						Left:     Property{Name: "status"},
+						Right:    Literal{Value: "closed"},
+					},
+				},
+			},
+			expected: `(a > 10 AND b < 20) OR NOT status = "closed"`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -94,3 +148,18 @@ func TestTextSerializer(t *testing.T) {
 		})
 	}
 }
+
+func TestSerializeText_NilAndUnsupported(t *testing.T) {
+	// Test serializing a nil expression.
+	_, err := SerializeText(nil)
+	require.Error(t, err, "expected error when serializing nil expression")
+
+	// Test serializing an unsupported expression type.
+	_, err = SerializeText(DummyExpr{})
+	require.Error(t, err, "expected error for unsupported expression type")
+}
+
+// DummyExpr is a simple Expression implementation with no serializer support.
+type DummyExpr struct{}
+
+func (DummyExpr) isExpr() {}

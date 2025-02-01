@@ -103,28 +103,6 @@ func (p *Parser) visit(node interface{}) error {
 	}
 }
 
-type Operator string
-
-const (
-	// Comparison operators
-	OpEquals            Operator = "="
-	OpNotEquals         Operator = "!="
-	OpLessThan          Operator = "<"
-	OpGreaterThan       Operator = ">"
-	OpLessThanEquals    Operator = "<="
-	OpGreaterThanEquals Operator = ">="
-
-	// Spatial operators
-	OpSIntersects Operator = "s_intersects"
-	OpSContains   Operator = "s_contains"
-	OpSWithin     Operator = "s_within"
-
-	// Logical operators
-	OpAnd Operator = "and"
-	OpOr  Operator = "or"
-	OpNot Operator = "not"
-)
-
 func GetOperator(op string) (Operator, bool) {
 	if _, ok := map[Operator]bool{
 		OpEquals:            true,

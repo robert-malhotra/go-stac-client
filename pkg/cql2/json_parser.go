@@ -35,7 +35,7 @@ func parseJSONExpr(data json.RawMessage) (Expression, error) {
 				return nil, err
 			}
 			return &LogicalOperator{
-				Operator: logical.Op,
+				Operator: Operator(logical.Op),
 				Left:     left,
 				Right:    right,
 			}, nil
@@ -71,7 +71,7 @@ func parseJSONExpr(data json.RawMessage) (Expression, error) {
 		}
 
 		return &Comparison{
-			Operator: comp.Op,
+			Operator: Operator(comp.Op),
 			Left:     left,
 			Right:    right,
 		}, nil

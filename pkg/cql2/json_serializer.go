@@ -10,7 +10,7 @@ func (c Comparison) MarshalJSON() ([]byte, error) {
 		OP   string        `json:"op"`
 		Args []interface{} `json:"args"`
 	}{
-		OP:   c.Operator,
+		OP:   string(c.Operator),
 		Args: []interface{}{c.Left, c.Right},
 	})
 }
@@ -20,7 +20,7 @@ func (lo LogicalOperator) MarshalJSON() ([]byte, error) {
 		OP   string        `json:"op"`
 		Args []interface{} `json:"args"`
 	}{
-		OP:   lo.Operator,
+		OP:   string(lo.Operator),
 		Args: []interface{}{lo.Left, lo.Right},
 	})
 }
@@ -99,7 +99,7 @@ func parseLogical(op string, args []json.RawMessage) (Expression, error) {
 	}
 
 	return LogicalOperator{
-		Operator: op,
+		Operator: Operator(op),
 		Left:     left,
 		Right:    right,
 	}, nil
@@ -120,7 +120,7 @@ func parseComparison(op string, args []json.RawMessage) (Expression, error) {
 	}
 
 	return Comparison{
-		Operator: op,
+		Operator: Operator(op),
 		Left:     left,
 		Right:    right,
 	}, nil

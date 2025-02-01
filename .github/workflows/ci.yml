@@ -1,64 +1,30 @@
-name: CI with Build and Test Caching
+name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
 
 jobs:
-  build-and-test:
+  test:
     runs-on: ubuntu-latest
-    # Set GOCACHE to a custom directory that is not part of your repository.
-    env:
-      GOCACHE: ${{ runner.temp }}/go-build-cache
+
     steps:
-      # Step 1: Check out the repository.
+      # Check out your repository so that the workflow has access to the code.
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Step 2: Restore the Go build cache (which stores build and test artifacts).
-      - name: Restore Go Build Cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.GOCACHE }}
-          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-build-
-
-      # Step 3: Set up Go.
-      # We disable the built-in caching (cache: false) to avoid conflicts with toolchain caching.
+      # Set up the specified version of Go (adjust the version as needed).
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23.1'
-          cache: false
-
-      # Step 4: Download module dependencies.
+          go-version: '1.21'
+      
+      # Download Go module dependencies.
       - name: Download Dependencies
         run: go mod download
 
-      # Optional: Verify that GOCACHE is set as expected.
-      - name: Show Go Cache Location
-        run: go env GOCACHE
-
-      # Step 5: Build the application.
-      - name: Build Application
-        run: go build -v ./...
-
-      # Step 6: Run tests.
-      # The test output (and cached results) are stored in GOCACHE.
+      # Run tests for all packages.
       - name: Run Tests
-        run: |
-          # Ensure the cache directory exists.
-          mkdir -p "${GOCACHE}"
-          # Run tests and output verbose results.
-          go test -v ./...
-
-      # Step 7: (Optional) Upload additional test artifacts.
-      # If you generate any reports (e.g. coverage), you can upload them as artifacts.
-      #- name: Upload Test Reports
-      #  uses: actions/upload-artifact@v4
-      #  with:
-      #    name: test-reports
-      #    path: coverage.txt
+        run: go test -v ./...

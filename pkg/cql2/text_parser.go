@@ -86,7 +86,7 @@ type TextComparison struct {
 
 func (c *TextComparison) ToAST() Expression {
 	return &Comparison{
-		Operator: c.Op,
+		Operator: Operator(c.Op),
 		Left:     c.Left.ToExpr(),
 		Right:    c.Right.ToExpr(),
 	}

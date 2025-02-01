@@ -17,7 +17,7 @@ type Literal struct {
 func (Literal) isExpr() {}
 
 type Comparison struct {
-	Operator string
+	Operator Operator
 	Left     Expression
 	Right    Expression
 }
@@ -25,7 +25,7 @@ type Comparison struct {
 func (Comparison) isExpr() {}
 
 type LogicalOperator struct {
-	Operator string
+	Operator Operator
 	Left     Expression
 	Right    Expression
 }
@@ -37,3 +37,25 @@ type Not struct {
 }
 
 func (Not) isExpr() {}
+
+type Operator string
+
+const (
+	// Comparison operators
+	OpEquals            Operator = "="
+	OpNotEquals         Operator = "!="
+	OpLessThan          Operator = "<"
+	OpGreaterThan       Operator = ">"
+	OpLessThanEquals    Operator = "<="
+	OpGreaterThanEquals Operator = ">="
+
+	// Spatial operators
+	OpSIntersects Operator = "s_intersects"
+	OpSContains   Operator = "s_contains"
+	OpSWithin     Operator = "s_within"
+
+	// Logical operators
+	OpAnd Operator = "and"
+	OpOr  Operator = "or"
+	OpNot Operator = "not"
+)

@@ -43,7 +43,7 @@ func serialize(expr Expression, parentPrecedence int) (string, error) {
 			return "", err
 		}
 
-		result := fmt.Sprintf("%s %s %s", left, strings.ToUpper(e.Operator), right)
+		result := fmt.Sprintf("%s %s %s", left, strings.ToUpper(string(e.Operator)), right)
 
 		// Add parentheses if nested within another operator
 		if parentPrecedence > 0 {
@@ -78,8 +78,8 @@ func serializeLiteral(value interface{}) (string, error) {
 	}
 }
 
-func getPrecedence(op string) int {
-	switch strings.ToUpper(op) {
+func getPrecedence(op Operator) int {
+	switch op {
 	case "NOT":
 		return 3
 	case "AND":

@@ -2,30 +2,66 @@ name: CI
 
 on:
   push:
-    branches: [ main,cql2 ]
+    branches: [ main ]
   pull_request:
-    branches: [ main,cql2 ]
+    branches: [ main ]
 
 jobs:
   test:
     runs-on: ubuntu-latest
 
     steps:
-      # Check out your repository so that the workflow has access to the code.
+      # Step 1: Check out the repository.
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Set up the specified version of Go (adjust the version as needed).
+      # Step 2: Set up Go with caching enabled.
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
-      
-      # Download Go module dependencies.
-      - name: Download Dependencies
+          # Enable caching of dependencies via go.sum.
+          cache: true
+          cache-dependency-path: go.sum
+
+      # (Optional) Step 3: Cache the Go build cache.
+      # Determine the cache paths using go env.
+      - name: Get Go cache paths
+        id: cache-paths
+        run: |
+          echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+
+      # Restore the Go build cache.
+      - name: Restore Go build cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.cache-paths.outputs.GOCACHE }}
+          key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-build-
+
+      # (Optional) Restore the Go module cache if not using setup-go caching.
+      - name: Restore Go module cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.cache-paths.outputs.GOMODCACHE }}
+          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-mod-
+
+      # Step 4: Download dependencies (this is fast if caches were restored).
+      - name: Download dependencies
         run: go mod download
 
-      # Run tests for all packages.
+      # Step 5: Run tests.
       - name: Run Tests
         run: go test -v ./...
-
+        
+      # (Optional) Step 6: Upload test result artifacts if you generate any reports.
+      # Uncomment and modify the following if you want to save test output files.
+      # - name: Upload Test Results
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: go-test-results
+      #     path: test-results/

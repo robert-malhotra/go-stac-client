@@ -195,7 +195,7 @@ func TestLiveESA(t *testing.T) {
 	}
 	t.Log(r)
 
-	r, err = client.GetNextItems(context.Background(), r)
+	_, err = client.GetNextItems(context.Background(), r)
 	require.NoError(t, err)
 
 }

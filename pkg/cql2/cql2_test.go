@@ -1,3 +1,4 @@
+// File: cql2_test.go
 package cql2
 
 import (
@@ -6,160 +7,185 @@ import (
 	"testing"
 )
 
+// TestVisitor collects operator calls during parsing.
+// It implements the Visitor interface.
 type TestVisitor struct {
 	t             *testing.T
 	actualCalls   []string
 	expectedCalls []string
 }
 
-func NewTestVisitor(t *testing.T) *TestVisitor {
-	return &TestVisitor{
-		t: t,
-		expectedCalls: []string{
-			"And",
-			"Equals:collection:landsat8_l1tp",
-			"LessThanOrEquals:eo:cloud_cover:10",
-			"GreaterThanOrEquals:datetime:2021-04-08T04:39:23Z",
-			"SIntersects:geometry:polygon",
-		},
-	}
-}
-
-func (v *TestVisitor) OnEquals(property string, value interface{}) error {
-	v.actualCalls = append(v.actualCalls, fmt.Sprintf("Equals:%s:%v", property, value))
+func (v *TestVisitor) OnEquals(prop string, value interface{}) error {
+	v.actualCalls = append(v.actualCalls, fmt.Sprintf("Equals:%s:%v", prop, value))
 	return nil
 }
-
-func (v *TestVisitor) OnLessThan(property string, value interface{}) error {
-	v.actualCalls = append(v.actualCalls, fmt.Sprintf("LessThan:%s:%v", property, value))
+func (v *TestVisitor) OnNotEquals(prop string, value interface{}) error {
+	v.actualCalls = append(v.actualCalls, fmt.Sprintf("NotEquals:%s:%v", prop, value))
 	return nil
 }
-
-func (v *TestVisitor) OnGreaterThan(property string, value interface{}) error {
-	v.actualCalls = append(v.actualCalls, fmt.Sprintf("GreaterThan:%s:%v", property, value))
+func (v *TestVisitor) OnLessThan(prop string, value interface{}) error {
+	v.actualCalls = append(v.actualCalls, fmt.Sprintf("LessThan:%s:%v", prop, value))
 	return nil
 }
-
-func (v *TestVisitor) OnLessThanOrEquals(property string, value interface{}) error {
-	v.actualCalls = append(v.actualCalls, fmt.Sprintf("LessThanOrEquals:%s:%v", property, value))
+func (v *TestVisitor) OnGreaterThan(prop string, value interface{}) error {
+	v.actualCalls = append(v.actualCalls, fmt.Sprintf("GreaterThan:%s:%v", prop, value))
 	return nil
 }
-
-func (v *TestVisitor) OnGreaterThanOrEquals(property string, value interface{}) error {
-	v.actualCalls = append(v.actualCalls, fmt.Sprintf("GreaterThanOrEquals:%s:%v", property, value))
+func (v *TestVisitor) OnLessThanOrEquals(prop string, value interface{}) error {
+	v.actualCalls = append(v.actualCalls, fmt.Sprintf("LessThanOrEquals:%s:%v", prop, value))
 	return nil
 }
-
-func (v *TestVisitor) OnNotEquals(property string, value interface{}) error {
-	v.actualCalls = append(v.actualCalls, fmt.Sprintf("NotEquals:%s:%v", property, value))
+func (v *TestVisitor) OnGreaterThanOrEquals(prop string, value interface{}) error {
+	v.actualCalls = append(v.actualCalls, fmt.Sprintf("GreaterThanOrEquals:%s:%v", prop, value))
 	return nil
 }
-
-func (v *TestVisitor) OnSIntersects(property string, geometry interface{}) error {
-	geom := geometry.(map[string]interface{})
-	v.actualCalls = append(v.actualCalls, fmt.Sprintf("SIntersects:%s:%s", property, strings.ToLower(geom["type"].(string))))
+func (v *TestVisitor) OnSIntersects(prop string, geom interface{}) error {
+	m := geom.(map[string]interface{})
+	v.actualCalls = append(v.actualCalls, fmt.Sprintf("SIntersects:%s:%s", prop, strings.ToLower(m["type"].(string))))
 	return nil
 }
-
-func (v *TestVisitor) OnSContains(property string, geometry interface{}) error {
-	geom := geometry.(map[string]interface{})
-	v.actualCalls = append(v.actualCalls, fmt.Sprintf("SContains:%s:%s", property, strings.ToLower(geom["type"].(string))))
+func (v *TestVisitor) OnSContains(prop string, geom interface{}) error {
+	m := geom.(map[string]interface{})
+	v.actualCalls = append(v.actualCalls, fmt.Sprintf("SContains:%s:%s", prop, strings.ToLower(m["type"].(string))))
 	return nil
 }
-
-func (v *TestVisitor) OnSWithin(property string, geometry interface{}) error {
-	geom := geometry.(map[string]interface{})
-	v.actualCalls = append(v.actualCalls, fmt.Sprintf("SWithin:%s:%s", property, strings.ToLower(geom["type"].(string))))
+func (v *TestVisitor) OnSWithin(prop string, geom interface{}) error {
+	m := geom.(map[string]interface{})
+	v.actualCalls = append(v.actualCalls, fmt.Sprintf("SWithin:%s:%s", prop, strings.ToLower(m["type"].(string))))
 	return nil
 }
-
 func (v *TestVisitor) OnAnd(args []interface{}) error {
 	v.actualCalls = append(v.actualCalls, "And")
 	return nil
 }
-
 func (v *TestVisitor) OnOr(args []interface{}) error {
 	v.actualCalls = append(v.actualCalls, "Or")
 	return nil
 }
-
 func (v *TestVisitor) OnNot(arg interface{}) error {
 	v.actualCalls = append(v.actualCalls, "Not")
 	return nil
 }
-
 func (v *TestVisitor) Verify() {
-	if len(v.expectedCalls) != len(v.actualCalls) {
-		v.t.Errorf("Expected %d calls but got %d", len(v.expectedCalls), len(v.actualCalls))
-		v.t.Errorf("Expected: %v", v.expectedCalls)
-		v.t.Errorf("Actual: %v", v.actualCalls)
-		return
+	if len(v.actualCalls) != len(v.expectedCalls) {
+		v.t.Fatalf("expected %d calls, got %d:\nexpected: %v\nactual:   %v",
+			len(v.expectedCalls), len(v.actualCalls), v.expectedCalls, v.actualCalls)
 	}
-
-	for i, expected := range v.expectedCalls {
-		if expected != v.actualCalls[i] {
-			v.t.Errorf("Call %d: expected %s but got %s", i, expected, v.actualCalls[i])
+	for i, exp := range v.expectedCalls {
+		if exp != v.actualCalls[i] {
+			v.t.Errorf("call %d: expected %q, got %q", i, exp, v.actualCalls[i])
 		}
 	}
 }
 
-func TestComplexQuery(t *testing.T) {
+// TestAllOperators exercises all comparison, spatial, and logical operators
+// using a top-level "and" query.
+func TestAllOperators(t *testing.T) {
 	query := `{
 		"op": "and",
 		"args": [
-			{
-				"op": "=",
-				"args": [
-					{ "property": "collection" },
-					"landsat8_l1tp"
-				]
-			},
-			{
-				"op": "<=",
-				"args": [
-					{ "property": "eo:cloud_cover" },
-					10
-				]
-			},
-			{
-				"op": ">=",
-				"args": [
-					{ "property": "datetime" },
-					{ "timestamp": "2021-04-08T04:39:23Z" }
-				]
-			},
-			{
-				"op": "s_intersects",
-				"args": [
-					{ "property": "geometry" },
-					{
-						"type": "Polygon",
-						"coordinates": [[
-							[43.5845, -79.5442],
-							[43.6079, -79.4893],
-							[43.5677, -79.4632],
-							[43.6129, -79.3925],
-							[43.6223, -79.3238],
-							[43.6576, -79.3163],
-							[43.7945, -79.1178],
-							[43.8144, -79.1542],
-							[43.8555, -79.1714],
-							[43.7509, -79.6390],
-							[43.5845, -79.5442]
-						]]
-					}
-				]
-			}
+			{"op": "=","args": [{"property": "a"}, "val"]},
+			{"op": "!=","args": [{"property": "b"}, "val"]},
+			{"op": "<","args": [{"property": "c"}, 1]},
+			{"op": ">","args": [{"property": "d"}, 2]},
+			{"op": "<=","args": [{"property": "e"}, 3]},
+			{"op": ">=","args": [{"property": "f"}, 4]},
+			{"op": "s_intersects","args": [{"property": "g"}, {"type": "Polygon", "coordinates": [[[0,0],[1,0],[1,1],[0,1],[0,0]]]}]},
+			{"op": "s_contains","args": [{"property": "h"}, {"type": "Polygon", "coordinates": [[[0,0],[1,0],[1,1],[0,1],[0,0]]]}]},
+			{"op": "s_within","args": [{"property": "i"}, {"type": "Polygon", "coordinates": [[[0,0],[1,0],[1,1],[0,1],[0,0]]]}]}
 		]
 	}`
-
-	visitor := NewTestVisitor(t)
-	parser := NewParser(NewAdapter(visitor))
-
-	err := parser.Parse(query)
-	if err != nil {
-		t.Fatalf("Failed to parse query: %v", err)
+	expected := []string{
+		"And",
+		"Equals:a:val",
+		"NotEquals:b:val",
+		"LessThan:c:1",
+		"GreaterThan:d:2",
+		"LessThanOrEquals:e:3",
+		"GreaterThanOrEquals:f:4",
+		"SIntersects:g:polygon",
+		"SContains:h:polygon",
+		"SWithin:i:polygon",
 	}
-
+	visitor := &TestVisitor{t: t, expectedCalls: expected}
+	parser := NewParser(NewAdapter(visitor))
+	if err := parser.Parse(query); err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
 	visitor.Verify()
+}
+
+// TestLogicalOperators verifies handling of "or" and "not" operators.
+func TestLogicalOperators(t *testing.T) {
+	query := `{
+		"op": "or",
+		"args": [
+			{"op": "=","args": [{"property": "x"}, 10]},
+			{"op": "not", "args": [
+				{"op": "=","args": [{"property": "y"}, 20]}
+			]}
+		]
+	}`
+	expected := []string{"Or", "Equals:x:10", "Not"}
+	visitor := &TestVisitor{t: t, expectedCalls: expected}
+	parser := NewParser(NewAdapter(visitor))
+	if err := parser.Parse(query); err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
+	visitor.Verify()
+}
+
+// TestTimestampTransformation checks that a timestamp argument is processed correctly.
+func TestTimestampTransformation(t *testing.T) {
+	query := `{
+		"op": ">=",
+		"args": [
+			{"property": "datetime"},
+			{"timestamp": "2021-04-08T04:39:23Z"}
+		]
+	}`
+	expected := []string{"GreaterThanOrEquals:datetime:2021-04-08T04:39:23Z"}
+	visitor := &TestVisitor{t: t, expectedCalls: expected}
+	parser := NewParser(NewAdapter(visitor))
+	if err := parser.Parse(query); err != nil {
+		t.Fatalf("Parse error: %v", err)
+	}
+	visitor.Verify()
+}
+
+// TestErrorCases uses table-driven tests to exercise error conditions in the parser.
+func TestErrorCases(t *testing.T) {
+	tests := []struct {
+		name         string
+		query        string
+		errSubstring string
+	}{
+		{
+			name:         "MissingArgs",
+			query:        `{"op": "=","args": [{"property": "x"}]}`,
+			errSubstring: "comparison operator requires exactly two arguments",
+		},
+		{
+			name:         "UnknownOperator",
+			query:        `{"op": "foobar","args": [{"property": "x"}, "val"]}`,
+			errSubstring: "unknown operator",
+		},
+		{
+			name:         "NotOperatorWrongArgCount",
+			query:        `{"op": "not","args": [{"property": "x"}, "val"]}`,
+			errSubstring: "not operator requires exactly one argument",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			visitor := &TestVisitor{t: t}
+			parser := NewParser(NewAdapter(visitor))
+			err := parser.Parse(tt.query)
+			if err == nil {
+				t.Errorf("Expected error for query: %s", tt.query)
+			} else if !strings.Contains(err.Error(), tt.errSubstring) {
+				t.Errorf("Expected error to contain %q, got %q", tt.errSubstring, err.Error())
+			}
+		})
+	}
 }

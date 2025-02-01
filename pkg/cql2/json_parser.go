@@ -86,13 +86,13 @@ func parseJSONArg(data json.RawMessage) (Expression, error) {
 		Property string `json:"property"`
 	}
 	if err := json.Unmarshal(data, &prop); err == nil && prop.Property != "" {
-		return Property{Name: prop.Property}, nil // Return struct instead of pointer
+		return Property{Name: prop.Property}, nil
 	}
 
 	// Try to parse as literal value
 	var literal interface{}
 	if err := json.Unmarshal(data, &literal); err == nil {
-		return Literal{Value: literal}, nil // Return struct instead of pointer
+		return Literal{Value: literal}, nil
 	}
 
 	return nil, errors.New("invalid argument format")

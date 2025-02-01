@@ -1,67 +1,64 @@
-name: CI
+name: CI with Build and Test Caching
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
-  test:
+  build-and-test:
     runs-on: ubuntu-latest
-
+    # Set GOCACHE to a custom directory that is not part of your repository.
+    env:
+      GOCACHE: ${{ runner.temp }}/go-build-cache
     steps:
       # Step 1: Check out the repository.
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Step 2: Set up Go with caching enabled.
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
-          # Enable caching of dependencies via go.sum.
-          cache: true
-          cache-dependency-path: go.sum
-
-      # (Optional) Step 3: Cache the Go build cache.
-      # Determine the cache paths using go env.
-      - name: Get Go cache paths
-        id: cache-paths
-        run: |
-          echo "GOCACHE=$(go env GOCACHE)" >> $GITHUB_OUTPUT
-          echo "GOMODCACHE=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
-
-      # Restore the Go build cache.
-      - name: Restore Go build cache
+      # Step 2: Restore the Go build cache (which stores build and test artifacts).
+      - name: Restore Go Build Cache
         uses: actions/cache@v4
         with:
-          path: ${{ steps.cache-paths.outputs.GOCACHE }}
+          path: ${{ env.GOCACHE }}
           key: ${{ runner.os }}-go-build-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-build-
 
-      # (Optional) Restore the Go module cache if not using setup-go caching.
-      - name: Restore Go module cache
-        uses: actions/cache@v4
+      # Step 3: Set up Go.
+      # We disable the built-in caching (cache: false) to avoid conflicts with toolchain caching.
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          path: ${{ steps.cache-paths.outputs.GOMODCACHE }}
-          key: ${{ runner.os }}-go-mod-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-mod-
+          go-version: '1.23.1'
+          cache: false
 
-      # Step 4: Download dependencies (this is fast if caches were restored).
-      - name: Download dependencies
+      # Step 4: Download module dependencies.
+      - name: Download Dependencies
         run: go mod download
 
-      # Step 5: Run tests.
+      # Optional: Verify that GOCACHE is set as expected.
+      - name: Show Go Cache Location
+        run: go env GOCACHE
+
+      # Step 5: Build the application.
+      - name: Build Application
+        run: go build -v ./...
+
+      # Step 6: Run tests.
+      # The test output (and cached results) are stored in GOCACHE.
       - name: Run Tests
-        run: go test -v ./...
-        
-      # (Optional) Step 6: Upload test result artifacts if you generate any reports.
-      # Uncomment and modify the following if you want to save test output files.
-      # - name: Upload Test Results
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: go-test-results
-      #     path: test-results/
+        run: |
+          # Ensure the cache directory exists.
+          mkdir -p "${GOCACHE}"
+          # Run tests and output verbose results.
+          go test -v ./...
+
+      # Step 7: (Optional) Upload additional test artifacts.
+      # If you generate any reports (e.g. coverage), you can upload them as artifacts.
+      #- name: Upload Test Reports
+      #  uses: actions/upload-artifact@v4
+      #  with:
+      #    name: test-reports
+      #    path: coverage.txt

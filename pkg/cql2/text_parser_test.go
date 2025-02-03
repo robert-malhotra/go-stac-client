@@ -19,8 +19,8 @@ func TestParseText(t *testing.T) {
 			input: "temperature > 30.5",
 			expected: &Comparison{
 				Operator: ">",
-				Left:     Property{Name: "temperature"},
-				Right:    Literal{Value: 30.5},
+				Left:     "temperature",
+				Right:    30.5,
 			},
 		},
 		{
@@ -30,13 +30,13 @@ func TestParseText(t *testing.T) {
 				Operator: "AND",
 				Left: &Comparison{
 					Operator: ">",
-					Left:     Property{Name: "temp"},
-					Right:    Literal{Value: 30.0},
+					Left:     "temp",
+					Right:    30.0,
 				},
 				Right: &Comparison{
 					Operator: "<",
-					Left:     Property{Name: "humidity"},
-					Right:    Literal{Value: 80.0},
+					Left:     "humidity",
+					Right:    80.0,
 				},
 			},
 		},
@@ -49,20 +49,20 @@ func TestParseText(t *testing.T) {
 					Operator: "OR",
 					Left: &Comparison{
 						Operator: ">",
-						Left:     Property{Name: "a"},
-						Right:    Literal{Value: 5.0},
+						Left:     "a",
+						Right:    5.0,
 					},
 					Right: &Comparison{
 						Operator: "<",
-						Left:     Property{Name: "b"},
-						Right:    Literal{Value: 10.0},
+						Left:     "b",
+						Right:    10.0,
 					},
 				},
 				Right: &Not{
 					Expression: &Comparison{
 						Operator: "=",
-						Left:     Property{Name: "status"},
-						Right:    Literal{Value: "active"},
+						Left:     "status",
+						Right:    "active",
 					},
 				},
 			},
@@ -99,9 +99,10 @@ func TestParseText_Literals(t *testing.T) {
 			require.NoError(t, err)
 			comp, ok := expr.(*Comparison)
 			require.True(t, ok, "expected a Comparison")
-			prop, ok := comp.Left.(Property)
-			require.True(t, ok, "expected left operand to be a Property")
-			assert.Equal(t, tt.propName, prop.Name)
+			// Left operand is now simply a string.
+			prop, ok := comp.Left.(string)
+			require.True(t, ok, "expected left operand to be a string (property)")
+			assert.Equal(t, tt.propName, prop)
 		})
 	}
 }

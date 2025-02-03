@@ -21,8 +21,8 @@ func TestJSONRoundTrip(t *testing.T) {
 			name: "simple comparison",
 			expr: Comparison{
 				Operator: ">",
-				Left:     Property{Name: "temperature"},
-				Right:    Literal{Value: 30.5},
+				Left:     "temperature",
+				Right:    30.5,
 			},
 			expected: `{"op":">","args":[{"property":"temperature"},30.5]}`,
 		},
@@ -32,21 +32,21 @@ func TestJSONRoundTrip(t *testing.T) {
 				Operator: "AND",
 				Left: Comparison{
 					Operator: ">",
-					Left:     Property{Name: "temp"},
-					Right:    Literal{Value: 30},
+					Left:     "temp",
+					Right:    30,
 				},
 				Right: LogicalOperator{
 					Operator: "OR",
 					Left: Comparison{
 						Operator: "<",
-						Left:     Property{Name: "humidity"},
-						Right:    Literal{Value: 50},
+						Left:     "humidity",
+						Right:    50,
 					},
 					Right: Not{
 						Expression: Comparison{
 							Operator: "=",
-							Left:     Property{Name: "status"},
-							Right:    Literal{Value: "active"},
+							Left:     "status",
+							Right:    "active",
 						},
 					},
 				},
@@ -57,24 +57,24 @@ func TestJSONRoundTrip(t *testing.T) {
 			name: "string literal",
 			expr: Comparison{
 				Operator: "=",
-				Left:     Property{Name: "name"},
-				Right:    Literal{Value: "Alice"},
+				Left:     "name",
+				Right:    "Alice",
 			},
 		},
 		{
 			name: "number literal",
 			expr: Comparison{
 				Operator: ">",
-				Left:     Property{Name: "age"},
-				Right:    Literal{Value: 30.0},
+				Left:     "age",
+				Right:    30.0,
 			},
 		},
 		{
 			name: "boolean literal",
 			expr: Comparison{
 				Operator: "=",
-				Left:     Property{Name: "active"},
-				Right:    Literal{Value: true},
+				Left:     "active",
+				Right:    true,
 			},
 		},
 		{
@@ -83,13 +83,13 @@ func TestJSONRoundTrip(t *testing.T) {
 				Operator: "AND",
 				Left: Comparison{
 					Operator: "=",
-					Left:     Property{Name: "status"},
-					Right:    Literal{Value: "open"},
+					Left:     "status",
+					Right:    "open",
 				},
 				Right: Comparison{
 					Operator: "<",
-					Left:     Property{Name: "priority"},
-					Right:    Literal{Value: 5.0},
+					Left:     "priority",
+					Right:    5.0,
 				},
 			},
 		},
@@ -98,8 +98,8 @@ func TestJSONRoundTrip(t *testing.T) {
 			expr: Not{
 				Expression: Comparison{
 					Operator: "=",
-					Left:     Property{Name: "closed"},
-					Right:    Literal{Value: false},
+					Left:     "closed",
+					Right:    false,
 				},
 			},
 		},

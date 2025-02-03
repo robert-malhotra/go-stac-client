@@ -1,39 +1,29 @@
 package cql2
 
+// Expression is now simply an interface implemented by composite nodes.
+// Leaf values (properties and literal values) are represented by plain Go types.
 type Expression interface {
 	isExpr()
 }
 
-type Property struct {
-	Name string
-}
-
-func (Property) isExpr() {}
-
-type Literal struct {
-	Value interface{}
-}
-
-func (Literal) isExpr() {}
-
 type Comparison struct {
-	Operator Operator
-	Left     Expression
-	Right    Expression
+	Operator Operator    // e.g. "=", ">", etc.
+	Left     interface{} // left operand (property name as string)
+	Right    interface{} // right operand (literal value, geometry, etc.)
 }
 
 func (Comparison) isExpr() {}
 
 type LogicalOperator struct {
-	Operator Operator
-	Left     Expression
-	Right    Expression
+	Operator Operator   // e.g. "and", "or"
+	Left     Expression // left sub-expression
+	Right    Expression // right sub-expression
 }
 
 func (LogicalOperator) isExpr() {}
 
 type Not struct {
-	Expression Expression
+	Expression Expression // the expression being negated
 }
 
 func (Not) isExpr() {}

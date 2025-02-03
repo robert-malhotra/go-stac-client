@@ -6,12 +6,17 @@ import (
 )
 
 func (c Comparison) MarshalJSON() ([]byte, error) {
+	// When serializing the left operand (a property) wrap it as an object.
+	left := c.Left
+	if s, ok := c.Left.(string); ok {
+		left = map[string]string{"property": s}
+	}
 	return json.Marshal(struct {
 		OP   string        `json:"op"`
 		Args []interface{} `json:"args"`
 	}{
 		OP:   string(c.Operator),
-		Args: []interface{}{c.Left, c.Right},
+		Args: []interface{}{left, c.Right},
 	})
 }
 
@@ -35,26 +40,17 @@ func (n Not) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (p Property) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]string{
-		"property": p.Name,
-	})
-}
-
-func (l Literal) MarshalJSON() ([]byte, error) {
-	return json.Marshal(l.Value)
-}
-
-type cqlJSON struct {
-	OP   string            `json:"op"`
-	Args []json.RawMessage `json:"args"`
-}
-
+// SerializeJSON serializes an expression to JSON.
 func SerializeJSON(expr Expression) ([]byte, error) {
 	if expr == nil {
 		return nil, fmt.Errorf("cannot serialize nil expression")
 	}
 	return json.Marshal(expr)
+}
+
+type cqlJSON struct {
+	OP   string            `json:"op"`
+	Args []json.RawMessage `json:"args"`
 }
 
 func DeserializeJSON(data []byte) (Expression, error) {
@@ -126,19 +122,19 @@ func parseComparison(op string, args []json.RawMessage) (Expression, error) {
 	}, nil
 }
 
-func parseArg(data json.RawMessage) (Expression, error) {
-	// Try property first
+func parseArg(data json.RawMessage) (interface{}, error) {
+	// Try property first.
 	var prop struct {
 		Property string `json:"property"`
 	}
 	if err := json.Unmarshal(data, &prop); err == nil && prop.Property != "" {
-		return Property{Name: prop.Property}, nil
+		return prop.Property, nil
 	}
 
-	// Try literal value
+	// Try literal value.
 	var literal interface{}
 	if err := json.Unmarshal(data, &literal); err == nil {
-		return Literal{Value: literal}, nil
+		return literal, nil
 	}
 
 	return nil, fmt.Errorf("invalid argument format")

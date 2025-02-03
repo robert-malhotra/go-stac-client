@@ -87,8 +87,8 @@ type TextComparison struct {
 func (c *TextComparison) ToAST() Expression {
 	return &Comparison{
 		Operator: Operator(c.Op),
-		Left:     c.Left.ToExpr(),
-		Right:    c.Right.ToExpr(),
+		Left:     c.Left.ToExpr(),  // property name (string)
+		Right:    c.Right.ToExpr(), // literal value
 	}
 }
 
@@ -97,27 +97,28 @@ type Operand struct {
 	Literal  *TextLiteral `parser:"| @@"`
 }
 
+func (o *Operand) ToExpr() interface{} {
+	if o.Property != nil {
+		// Return the property name directly.
+		return *o.Property
+	}
+	return o.Literal.ToExpr()
+}
+
 type TextLiteral struct {
 	Number  *float64 `parser:"  @Number"`
 	String  *string  `parser:"| @String"`
 	Boolean *bool    `parser:"| @Boolean"`
 }
 
-func (o *Operand) ToExpr() Expression {
-	if o.Property != nil {
-		return Property{Name: *o.Property}
-	}
-	return o.Literal.ToExpr()
-}
-
-func (l *TextLiteral) ToExpr() Expression {
+func (l *TextLiteral) ToExpr() interface{} {
 	switch {
 	case l.Number != nil:
-		return Literal{Value: *l.Number}
+		return *l.Number
 	case l.String != nil:
-		return Literal{Value: *l.String}
+		return *l.String
 	case l.Boolean != nil:
-		return Literal{Value: *l.Boolean}
+		return *l.Boolean
 	}
 	return nil
 }

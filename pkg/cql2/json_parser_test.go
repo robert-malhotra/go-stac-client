@@ -29,8 +29,8 @@ func TestJSONParser_Success(t *testing.T) {
 			verify: func(t *testing.T, expr Expression) {
 				expected := &Comparison{
 					Operator: ">",
-					Left:     Property{Name: "temperature"},
-					Right:    Literal{Value: 30.5},
+					Left:     "temperature",
+					Right:    30.5,
 				}
 				assert.Equal(t, expected, expr)
 			},
@@ -52,21 +52,21 @@ func TestJSONParser_Success(t *testing.T) {
 					Operator: "AND",
 					Left: &Comparison{
 						Operator: ">",
-						Left:     Property{Name: "temp"},
-						Right:    Literal{Value: 30.0},
+						Left:     "temp",
+						Right:    30.0, // use float64 for consistency with JSON numbers
 					},
 					Right: &LogicalOperator{
 						Operator: "OR",
 						Left: &Comparison{
 							Operator: "<",
-							Left:     Property{Name: "humidity"},
-							Right:    Literal{Value: 50.0},
+							Left:     "humidity",
+							Right:    50.0, // use float64
 						},
 						Right: &Not{
 							Expression: &Comparison{
 								Operator: "=",
-								Left:     Property{Name: "status"},
-								Right:    Literal{Value: "active"},
+								Left:     "status",
+								Right:    "active",
 							},
 						},
 					},
@@ -80,8 +80,8 @@ func TestJSONParser_Success(t *testing.T) {
 			verify: func(t *testing.T, expr Expression) {
 				expected := &Comparison{
 					Operator: "",
-					Left:     Property{Name: "temp"},
-					Right:    Literal{Value: 25.0},
+					Left:     "temp",
+					Right:    25.0,
 				}
 				assert.Equal(t, expected, expr)
 			},
@@ -92,8 +92,8 @@ func TestJSONParser_Success(t *testing.T) {
 			verify: func(t *testing.T, expr Expression) {
 				expected := &Comparison{
 					Operator: "UNKNOWN",
-					Left:     Property{Name: "temp"},
-					Right:    Literal{Value: 25.0},
+					Left:     "temp",
+					Right:    25.0,
 				}
 				assert.Equal(t, expected, expr)
 			},
@@ -104,11 +104,8 @@ func TestJSONParser_Success(t *testing.T) {
 			verify: func(t *testing.T, expr Expression) {
 				comp, ok := expr.(*Comparison)
 				require.True(t, ok)
-				lit, ok := comp.Right.(Literal)
-				require.True(t, ok)
-				tsMap, ok := lit.Value.(map[string]interface{})
-				require.True(t, ok)
-				assert.Equal(t, "2021-04-08T04:39:23Z", tsMap["timestamp"])
+				// After transformation, the right-hand side should be the timestamp string.
+				assert.Equal(t, "2021-04-08T04:39:23Z", comp.Right)
 			},
 		},
 		{
@@ -123,8 +120,8 @@ func TestJSONParser_Success(t *testing.T) {
 			verify: func(t *testing.T, expr Expression) {
 				expected := &Comparison{
 					Operator: "s_intersects",
-					Left:     Property{Name: "geometry"},
-					Right: Literal{Value: map[string]interface{}{
+					Left:     "geometry",
+					Right: map[string]interface{}{
 						"type": "Polygon",
 						"coordinates": []interface{}{
 							[]interface{}{
@@ -135,7 +132,7 @@ func TestJSONParser_Success(t *testing.T) {
 								[]interface{}{float64(0), float64(0)},
 							},
 						},
-					}},
+					},
 				}
 				assert.Equal(t, expected, expr)
 			},
@@ -152,8 +149,8 @@ func TestJSONParser_Success(t *testing.T) {
 			verify: func(t *testing.T, expr Expression) {
 				expected := &Comparison{
 					Operator: "=",
-					Left:     Property{Name: "datetime"},
-					Right:    Literal{Value: "2021-04-08T04:39:23Z"},
+					Left:     "datetime",
+					Right:    "2021-04-08T04:39:23Z",
 				}
 				assert.Equal(t, expected, expr)
 			},
@@ -174,7 +171,7 @@ func TestJSONParser_Success(t *testing.T) {
 				]
 			}`,
 			verify: func(t *testing.T, expr Expression) {
-				// Only verifying no error occurred.
+				// Only verifying that no error occurred.
 			},
 		},
 	}

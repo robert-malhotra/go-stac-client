@@ -147,12 +147,22 @@ func NewAdapter(v CQL2Visitor) *Adapter {
 }
 
 func (a *Adapter) VisitComparison(op string, left, right interface{}) error {
-	prop, ok := left.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("left operand must be property")
+	var propName string
+	switch v := left.(type) {
+	case string:
+		// If already a string, use it directly.
+		propName = v
+	case map[string]interface{}:
+		// If it’s a map, extract the "property" field.
+		if s, ok := v["property"].(string); ok {
+			propName = s
+		} else {
+			return fmt.Errorf("left operand property missing 'property' key")
+		}
+	default:
+		return fmt.Errorf("left operand must be a property (string or map), got %T", left)
 	}
 
-	propName := prop["property"].(string)
 	operator, ok := GetOperator(op)
 	if !ok {
 		return fmt.Errorf("unknown comparison operator: %s", op)
@@ -175,18 +185,25 @@ func (a *Adapter) VisitComparison(op string, left, right interface{}) error {
 		return fmt.Errorf("operator %s is not a comparison operator", operator)
 	}
 }
-
 func (a *Adapter) VisitFunction(name string, args []interface{}) error {
 	if len(args) != 2 {
 		return fmt.Errorf("spatial functions require exactly two arguments")
 	}
 
-	prop, ok := args[0].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("first argument must be property")
+	var propName string
+	switch v := args[0].(type) {
+	case string:
+		propName = v
+	case map[string]interface{}:
+		if s, ok := v["property"].(string); ok {
+			propName = s
+		} else {
+			return fmt.Errorf("first argument must be property (string)")
+		}
+	default:
+		return fmt.Errorf("first argument must be property (string), got %T", args[0])
 	}
 
-	propName := prop["property"].(string)
 	operator, ok := GetOperator(name)
 	if !ok {
 		return fmt.Errorf("unknown function: %s", name)

@@ -15,23 +15,16 @@ func SerializeText(expr Expression) (string, error) {
 
 func serialize(expr Expression, parentPrecedence int) (string, error) {
 	switch e := expr.(type) {
-	case Property:
-		return e.Name, nil
-
-	case Literal:
-		return serializeLiteral(e.Value)
-
 	case Comparison:
-		left, err := serialize(e.Left, 0)
+		left, err := serializeProperty(e.Left)
 		if err != nil {
 			return "", err
 		}
-		right, err := serialize(e.Right, 0)
+		right, err := serializeLiteral(e.Right)
 		if err != nil {
 			return "", err
 		}
 		return fmt.Sprintf("%s %s %s", left, e.Operator, right), nil
-
 	case LogicalOperator:
 		currentPrecedence := getPrecedence(e.Operator)
 		left, err := serialize(e.Left, currentPrecedence)
@@ -42,27 +35,32 @@ func serialize(expr Expression, parentPrecedence int) (string, error) {
 		if err != nil {
 			return "", err
 		}
-
 		result := fmt.Sprintf("%s %s %s", left, strings.ToUpper(string(e.Operator)), right)
-
-		// Add parentheses if nested within another operator
+		// Add parentheses if nested within another operator.
 		if parentPrecedence > 0 {
 			result = fmt.Sprintf("(%s)", result)
 		}
 		return result, nil
-
 	case Not:
 		inner, err := serialize(e.Expression, 3) // NOT has highest precedence
 		if err != nil {
 			return "", err
 		}
 		return fmt.Sprintf("NOT %s", inner), nil
-
 	default:
 		return "", fmt.Errorf("unsupported expression type: %T", expr)
 	}
 }
 
+// serializeProperty expects the property to be a string.
+func serializeProperty(value interface{}) (string, error) {
+	if s, ok := value.(string); ok {
+		return s, nil
+	}
+	return "", fmt.Errorf("property must be a string, got %T", value)
+}
+
+// serializeLiteral serializes a literal value. For string literals it adds quotes.
 func serializeLiteral(value interface{}) (string, error) {
 	switch v := value.(type) {
 	case string:

@@ -80,19 +80,25 @@ func parseJSONExpr(data json.RawMessage) (Expression, error) {
 	return nil, errors.New("invalid expression format")
 }
 
-func parseJSONArg(data json.RawMessage) (Expression, error) {
-	// Try to parse as property
+func parseJSONArg(data json.RawMessage) (interface{}, error) {
+	// Try to parse as property.
 	var prop struct {
 		Property string `json:"property"`
 	}
 	if err := json.Unmarshal(data, &prop); err == nil && prop.Property != "" {
-		return Property{Name: prop.Property}, nil
+		return prop.Property, nil
 	}
 
-	// Try to parse as literal value
+	// Try literal value.
 	var literal interface{}
 	if err := json.Unmarshal(data, &literal); err == nil {
-		return Literal{Value: literal}, nil
+		// If literal is a map with a "timestamp" key, return the timestamp string.
+		if m, ok := literal.(map[string]interface{}); ok {
+			if ts, ok := m["timestamp"].(string); ok {
+				return ts, nil
+			}
+		}
+		return literal, nil
 	}
 
 	return nil, errors.New("invalid argument format")

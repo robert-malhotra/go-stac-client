@@ -8,7 +8,7 @@ type Expression interface {
 
 type Comparison struct {
 	Operator Operator    // e.g. "=", ">", etc.
-	Left     interface{} // left operand (property name as string)
+	Left     string      // left operand (property name as string)
 	Right    interface{} // right operand (literal value, geometry, etc.)
 }
 
@@ -45,7 +45,7 @@ const (
 	OpSWithin     Operator = "s_within"
 
 	// Logical operators
-	OpAnd Operator = "and"
-	OpOr  Operator = "or"
-	OpNot Operator = "not"
+	OpAnd Operator = "AND"
+	OpOr  Operator = "OR"
+	OpNot Operator = "NOT"
 )

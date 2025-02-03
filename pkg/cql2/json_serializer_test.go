@@ -115,7 +115,7 @@ func TestJSONRoundTrip(t *testing.T) {
 				assert.JSONEq(t, tt.expected, string(data))
 			}
 			// Deserialize the JSON back to an expression.
-			parsed, err := DeserializeJSON(data)
+			parsed, err := ParseJSON(data)
 			require.NoError(t, err)
 
 			// Compare the JSON representations of the original and the round-tripped expressions.
@@ -153,7 +153,7 @@ func TestJSONErrors(t *testing.T) {
 	for _, tc := range errorCases {
 		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := DeserializeJSON(tc.data)
+			_, err := ParseJSON(tc.data)
 			require.Error(t, err)
 		})
 	}

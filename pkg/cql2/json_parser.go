@@ -22,7 +22,7 @@ func parseJSONExpr(data json.RawMessage) (Expression, error) {
 	}
 	if err := json.Unmarshal(data, &logical); err == nil {
 		switch logical.Op {
-		case "AND", "OR":
+		case string(OpAnd), string(OpOr):
 			if len(logical.Args) != 2 {
 				return nil, fmt.Errorf("%s requires 2 arguments", logical.Op)
 			}
@@ -39,7 +39,7 @@ func parseJSONExpr(data json.RawMessage) (Expression, error) {
 				Left:     left,
 				Right:    right,
 			}, nil
-		case "NOT":
+		case string(OpNot):
 			if len(logical.Args) != 1 {
 				return nil, errors.New("NOT requires 1 argument")
 			}
@@ -72,7 +72,7 @@ func parseJSONExpr(data json.RawMessage) (Expression, error) {
 
 		return &Comparison{
 			Operator: Operator(comp.Op),
-			Left:     left,
+			Left:     left.(string),
 			Right:    right,
 		}, nil
 	}

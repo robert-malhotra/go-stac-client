@@ -78,11 +78,11 @@ func serializeLiteral(value interface{}) (string, error) {
 
 func getPrecedence(op Operator) int {
 	switch op {
-	case "NOT":
+	case OpNot:
 		return 3
-	case "AND":
+	case OpAnd:
 		return 2
-	case "OR":
+	case OpOr:
 		return 1
 	default:
 		return 0

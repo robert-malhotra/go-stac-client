@@ -27,14 +27,14 @@ func TestParseText(t *testing.T) {
 			name:  "logical AND",
 			input: "temp > 30 AND humidity < 80",
 			expected: &LogicalOperator{
-				Operator: "AND",
+				Operator: OpAnd,
 				Left: &Comparison{
-					Operator: ">",
+					Operator: OpGreaterThan,
 					Left:     "temp",
 					Right:    30.0,
 				},
 				Right: &Comparison{
-					Operator: "<",
+					Operator: OpLessThan,
 					Left:     "humidity",
 					Right:    80.0,
 				},
@@ -44,23 +44,23 @@ func TestParseText(t *testing.T) {
 			name:  "complex expression",
 			input: `(a > 5 OR b < 10) AND NOT status = "active"`,
 			expected: &LogicalOperator{
-				Operator: "AND",
+				Operator: OpAnd,
 				Left: &LogicalOperator{
-					Operator: "OR",
+					Operator: OpOr,
 					Left: &Comparison{
-						Operator: ">",
+						Operator: OpGreaterThan,
 						Left:     "a",
 						Right:    5.0,
 					},
 					Right: &Comparison{
-						Operator: "<",
+						Operator: OpLessThan,
 						Left:     "b",
 						Right:    10.0,
 					},
 				},
 				Right: &Not{
 					Expression: &Comparison{
-						Operator: "=",
+						Operator: OpEquals,
 						Left:     "status",
 						Right:    "active",
 					},
@@ -100,9 +100,8 @@ func TestParseText_Literals(t *testing.T) {
 			comp, ok := expr.(*Comparison)
 			require.True(t, ok, "expected a Comparison")
 			// Left operand is now simply a string.
-			prop, ok := comp.Left.(string)
 			require.True(t, ok, "expected left operand to be a string (property)")
-			assert.Equal(t, tt.propName, prop)
+			assert.Equal(t, tt.propName, comp.Left)
 		})
 	}
 }

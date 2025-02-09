@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	stac_client "go-stac-client/pkg/client"
 	"os"
+
+	stac_client "github.com/robert-malhotra/go-stac-client/pkg/client"
 
 	"github.com/spf13/cobra"
 )

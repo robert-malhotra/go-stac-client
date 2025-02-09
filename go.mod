@@ -1,4 +1,4 @@
-module github.com/robert.malhotra/go-stac-client
+module github.com/robert-malhotra/go-stac-client
 
 go 1.23.4
 

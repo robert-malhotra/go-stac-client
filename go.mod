@@ -1,4 +1,4 @@
-module go-stac-client
+module github.com/robert.malhotra/go-stac-client
 
 go 1.23.4
 
@@ -7,6 +7,8 @@ require github.com/spf13/cobra v1.8.1
 require github.com/alecthomas/participle/v2 v2.1.1
 
 require (
+	github.com/alecthomas/assert/v2 v2.10.0 // indirect
+	github.com/alecthomas/repr v0.4.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
@@ -20,5 +22,4 @@ require (
 	github.com/planetlabs/go-stac v0.32.0
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/testify v1.10.0
-	github.com/twpayne/go-geom v1.6.0
 )

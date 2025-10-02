@@ -1,29 +1,51 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"time"
 
-	"github.com/spf13/cobra"
+	"github.com/urfave/cli/v3"
 )
 
-var rootCmd = &cobra.Command{
-	Use:   "stac",
-	Short: "A STAC API client CLI",
-	Long: `A command line interface for interacting with STAC APIs.
-Supports collection and item operations with various filtering options.`,
-}
-
-var baseURL string
-
-func init() {
-	rootCmd.PersistentFlags().StringVar(&baseURL, "url", "", "Base URL of the STAC API (required)")
-	rootCmd.MarkPersistentFlagRequired("url")
-}
+var (
+	baseURLFlag = &cli.StringFlag{
+		Name:     "url",
+		Aliases:  []string{"u"},
+		Usage:    "STAC API base URL",
+		Required: true,
+	}
+	timeoutFlag = &cli.DurationFlag{
+		Name:    "timeout",
+		Aliases: []string{"t"},
+		Usage:   "HTTP client timeout (e.g. 30s, 1m)",
+		Value:   30 * time.Second,
+	}
+)
 
 func main() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+	cmd := &cli.Command{
+		Name:  "stac-cli",
+		Usage: "Interact with STAC APIs",
+		Flags: []cli.Flag{baseURLFlag, timeoutFlag},
+		Commands: []*cli.Command{
+			newCollectionsCommand(),
+			newItemsCommand(),
+		},
+	}
+
+	if err := cmd.Run(context.Background(), os.Args); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func clientOptionsFromCommand(cmd *cli.Command) (string, time.Duration, error) {
+	baseURL := cmd.String(baseURLFlag.Name)
+	if baseURL == "" {
+		return "", 0, fmt.Errorf("flag --url is required")
+	}
+
+	return baseURL, cmd.Duration(timeoutFlag.Name), nil
 }

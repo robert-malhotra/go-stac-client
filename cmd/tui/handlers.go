@@ -24,7 +24,8 @@ func (t *TUI) onInputCapture(event *tcell.EventKey) *tcell.EventKey {
 	// Handle 'j' key for JSON view
 	if event.Key() == tcell.KeyRune {
 		r := event.Rune()
-		if r == 'j' || r == 'J' {
+		switch {
+		case r == 'j' || r == 'J':
 			switch currentPage {
 			case "collections":
 				index := t.collectionsList.GetCurrentItem()
@@ -44,6 +45,12 @@ func (t *TUI) onInputCapture(event *tcell.EventKey) *tcell.EventKey {
 				if t.currentItem != nil {
 					t.showJSON(fmt.Sprintf("Item %s", t.currentItem.Id), t.currentItem)
 				}
+				return nil
+			}
+		case r == 's' || r == 'S':
+			switch currentPage {
+			case "collections", "items":
+				t.openBasicSearchForm()
 				return nil
 			}
 		}
@@ -94,6 +101,9 @@ func (t *TUI) onInputCapture(event *tcell.EventKey) *tcell.EventKey {
 		case "collections":
 			t.pages.SwitchToPage("input")
 			t.app.SetFocus(t.input)
+			return nil
+		case "searchForm":
+			t.closeBasicSearchForm()
 			return nil
 		}
 	}

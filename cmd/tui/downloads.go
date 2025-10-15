@@ -58,6 +58,8 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 	progress.SetBorder(true).SetTitle("Download Progress")
 	progress.SetText("Preparing download...")
 
+	previousFocus := t.app.GetFocus()
+
 	modal := tview.NewModal().
 		SetText(fmt.Sprintf("Downloading %s", asset.Href)).
 		AddButtons([]string{"Cancel"})
@@ -66,6 +68,9 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 		t.app.QueueUpdateDraw(func() {
 			t.pages.HidePage("download")
 			t.pages.RemovePage("download")
+			if previousFocus != nil {
+				t.app.SetFocus(previousFocus)
+			}
 		})
 	}
 
@@ -135,6 +140,7 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 			modal.SetText(fmt.Sprintf("Asset downloaded to %s", dest))
 			modal.ClearButtons()
 			modal.AddButtons([]string{"Close"})
+			modal.SetFocus(0)
 			modal.SetDoneFunc(func(buttonIndex int, buttonLabel string) {
 				removeDownloadPage()
 			})

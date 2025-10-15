@@ -49,17 +49,8 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 
 	ctx, cancel := context.WithCancel(t.baseCtx)
 
-	progress := tview.NewTextView().
-		SetDynamicColors(true).
-		SetWordWrap(true).
-		SetChangedFunc(func() {
-			t.app.Draw()
-		})
-	progress.SetBorder(true).SetTitle("Download Progress")
-	progress.SetText("Preparing download...")
-
 	modal := tview.NewModal().
-		SetText(fmt.Sprintf("Downloading %s", asset.Href)).
+		SetText(fmt.Sprintf("Preparing download...\n%s", asset.Href)).
 		AddButtons([]string{"Cancel"})
 
 	removeDownloadPage := func() {
@@ -89,13 +80,8 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 		session.cancel()
 	})
 
-	layout := tview.NewFlex().
-		SetDirection(tview.FlexRow).
-		AddItem(modal, 0, 1, true).
-		AddItem(progress, 0, 1, false)
-
 	t.pages.RemovePage("download")
-	t.pages.AddPage("download", layout, true, true)
+	t.pages.AddPage("download", modal, true, true)
 	t.app.SetFocus(modal)
 
 	dest := formatting.GetOutputFilename(asset.Href)
@@ -105,7 +91,6 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 			return
 		}
 		progressText := formatting.RenderDownloadProgress(downloaded, total)
-		progress.SetText(progressText)
 		modal.SetText(fmt.Sprintf("Downloading %s\n%s", asset.Href, progressText))
 	}
 
@@ -131,7 +116,6 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 			if userCancelled.Load() {
 				return
 			}
-			progress.SetText("Download complete!")
 			modal.SetText(fmt.Sprintf("Asset downloaded to %s", dest))
 			modal.ClearButtons()
 			modal.AddButtons([]string{"Close"})

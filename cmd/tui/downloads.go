@@ -14,7 +14,36 @@ import (
 )
 
 type downloadSession struct {
-	cancel func()
+	tui       *TUI
+	cancel    func()
+	prevFocus tview.Primitive
+	prevPage  string
+
+	restoreOnce sync.Once
+}
+
+func (s *downloadSession) teardown() {
+	if s == nil || s.tui == nil {
+		return
+	}
+
+	prevPage := s.prevPage
+	prevFocus := s.prevFocus
+
+	s.restoreOnce.Do(func() {
+		go s.tui.app.QueueUpdateDraw(func() {
+			if prevPage != "" {
+				s.tui.pages.SwitchToPage(prevPage)
+			}
+
+			s.tui.pages.HidePage("download")
+			s.tui.pages.RemovePage("download")
+
+			if prevFocus != nil {
+				s.tui.app.SetFocus(prevFocus)
+			}
+		})
+	})
 }
 
 func (t *TUI) setActiveDownload(session *downloadSession) {
@@ -56,38 +85,23 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 	previousFocus := t.app.GetFocus()
 	previousPage, _ := t.pages.GetFrontPage()
 
-	var restoreOnce sync.Once
-	removeDownloadPage := func() {
-		restoreOnce.Do(func() {
-			t.app.QueueUpdateDraw(func() {
-				if previousPage != "" {
-					t.pages.ShowPage(previousPage)
-					t.pages.SwitchToPage(previousPage)
-				}
-
-				t.pages.HidePage("download")
-				t.pages.RemovePage("download")
-
-				if previousFocus != nil {
-					t.app.SetFocus(previousFocus)
-				}
-			})
-		})
-	}
-
 	var (
 		cancelOnce    sync.Once
 		userCancelled atomic.Bool
 	)
 
 	session := &downloadSession{
-		cancel: func() {
-			cancelOnce.Do(func() {
-				userCancelled.Store(true)
-				cancel()
-				removeDownloadPage()
-			})
-		},
+		tui:       t,
+		prevFocus: previousFocus,
+		prevPage:  previousPage,
+	}
+
+	session.cancel = func() {
+		cancelOnce.Do(func() {
+			userCancelled.Store(true)
+			cancel()
+			session.teardown()
+		})
 	}
 	t.setActiveDownload(session)
 
@@ -95,11 +109,13 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 		session.cancel()
 	})
 
-	t.pages.RemovePage("download")
-	t.pages.AddPage("download", modal, true, false)
-	t.pages.ShowPage("download")
-	t.pages.SwitchToPage("download")
-	t.app.SetFocus(modal)
+	t.app.QueueUpdateDraw(func() {
+		t.pages.RemovePage("download")
+		t.pages.AddPage("download", modal, true, false)
+		t.pages.ShowPage("download")
+		t.pages.SwitchToPage("download")
+		t.app.SetFocus(modal)
+	})
 
 	dest := formatting.GetOutputFilename(asset.Href)
 
@@ -120,12 +136,12 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 		})
 
 		if userCancelled.Load() || errors.Is(err, context.Canceled) {
-			removeDownloadPage()
+			session.teardown()
 			return
 		}
 
 		if err != nil {
-			removeDownloadPage()
+			session.teardown()
 			t.showError(fmt.Sprintf("Download failed: %v", err))
 			return
 		}
@@ -138,7 +154,7 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 			modal.ClearButtons()
 			modal.AddButtons([]string{"Close"})
 			modal.SetDoneFunc(func(buttonIndex int, buttonLabel string) {
-				removeDownloadPage()
+				session.teardown()
 			})
 			t.app.SetFocus(modal)
 		})

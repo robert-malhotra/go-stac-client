@@ -195,6 +195,15 @@ func (c *Client) doRequest(ctx context.Context, method, rawURL string, body io.R
 		return nil, fmt.Errorf("error creating request for %s: %w", rawURL, err)
 	}
 
+	if body != nil {
+		switch method {
+		case http.MethodPost, http.MethodPut, http.MethodPatch:
+			if req.Header.Get("Content-Type") == "" {
+				req.Header.Set("Content-Type", "application/json")
+			}
+		}
+	}
+
 	// Apply all registered middleware in order.
 	for _, mw := range c.middleware {
 		if err := mw(req); err != nil {

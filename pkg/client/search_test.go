@@ -92,6 +92,7 @@ func TestClient_SearchCQL2(t *testing.T) {
 		switch hitCount {
 		case 1:
 			assert.Equal(t, http.MethodPost, r.Method)
+			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 			var payload SearchParams
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&payload))
 			assert.Equal(t, []string{"SENTINEL-1"}, payload.Collections)
@@ -104,6 +105,7 @@ func TestClient_SearchCQL2(t *testing.T) {
             }`, server.URL)))
 		case 2:
 			assert.Equal(t, http.MethodGet, r.Method)
+			assert.Empty(t, r.Header.Get("Content-Type"))
 			assert.Equal(t, "2", r.URL.Query().Get("page"))
 
 			w.Header().Set("Content-Type", "application/json")

@@ -109,6 +109,7 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 		})
 
 		if userCancelled.Load() || errors.Is(err, context.Canceled) {
+			removeDownloadPage()
 			return
 		}
 

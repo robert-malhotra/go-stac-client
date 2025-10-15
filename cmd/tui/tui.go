@@ -18,6 +18,7 @@ type TUI struct {
 	colDetail       *tview.TextView
 	itemsList       *tview.List
 	itemSummary     *tview.TextView
+	itemsHelp       *tview.TextView
 	itemDetail      *tview.Grid
 
 	// Item detail panes
@@ -30,6 +31,9 @@ type TUI struct {
 	client *client.Client
 	cols   []*stac.Collection
 	items  []*stac.Item
+
+	activeResultLabel  string
+	lastSearchMetadata map[string]string
 
 	currentItem *stac.Item
 

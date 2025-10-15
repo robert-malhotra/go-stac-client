@@ -19,6 +19,8 @@ func (t *TUI) setupPages() {
 	t.setupItemDetailPage()
 }
 
+const itemsHelpControls = "[yellow]↑/↓[white] select  [yellow]Enter[white] view detail  [yellow]j[white] raw JSON  [yellow]Esc[white] back  [yellow]Ctrl+C[white] quit"
+
 func (t *TUI) setupInputPage() {
 	t.input = tview.NewInputField().
 		SetLabel("STAC API URL: ").
@@ -69,7 +71,8 @@ func (t *TUI) setupCollectionsPage() {
 
 func (t *TUI) setupItemsPage() {
 	t.itemsList = tview.NewList()
-	t.itemsList.SetBorder(true).SetTitle("Items")
+	t.itemsList.SetBorder(true)
+	t.itemsList.SetTitle(t.itemsListTitle(false))
 	t.itemsList.ShowSecondaryText(false)
 	t.itemsList.SetWrapAround(false)
 
@@ -80,11 +83,12 @@ func (t *TUI) setupItemsPage() {
 		AddItem(t.itemsList, 0, 1, true).
 		AddItem(t.itemSummary, 0, 1, false)
 
-	itemsHelp := formatting.MakeHelpText("[yellow]↑/↓[white] select  [yellow]Enter[white] view detail  [yellow]j[white] raw JSON  [yellow]Esc[white] back  [yellow]Ctrl+C[white] quit")
+	t.itemsHelp = formatting.MakeHelpText("")
+	t.updateItemsHelp()
 	itemsPage := tview.NewFlex().
 		SetDirection(tview.FlexRow).
 		AddItem(itemsContent, 0, 1, true).
-		AddItem(itemsHelp, 3, 0, false)
+		AddItem(t.itemsHelp, 3, 0, false)
 
 	t.itemsList.SetChangedFunc(func(index int, mainText string, secondaryText string, shortcut rune) {
 		// Update summary
@@ -106,6 +110,30 @@ func (t *TUI) setupItemsPage() {
 	})
 
 	t.pages.AddPage("items", itemsPage, true, false)
+}
+
+func (t *TUI) itemsListTitle(loading bool) string {
+	title := "Items"
+	if label := t.activeResultLabel; label != "" {
+		title = fmt.Sprintf("%s – %s", title, label)
+	}
+	if loading {
+		title += " (loading...)"
+	}
+	return title
+}
+
+func (t *TUI) itemsHelpText() string {
+	if label := t.activeResultLabel; label != "" {
+		return fmt.Sprintf("%s\n[white]Source: [green]%s[white]", itemsHelpControls, label)
+	}
+	return itemsHelpControls
+}
+
+func (t *TUI) updateItemsHelp() {
+	if t.itemsHelp != nil {
+		t.itemsHelp.SetText(t.itemsHelpText())
+	}
 }
 
 func (t *TUI) setupItemDetailPage() {
@@ -200,38 +228,48 @@ func (t *TUI) fetchCollections(url string) {
 }
 
 func (t *TUI) fetchItems(collectionID string) {
+	label := fmt.Sprintf("Collection: %s", collectionID)
+	metadata := map[string]string{"collection_id": collectionID}
+
+	t.activeResultLabel = label
+	t.lastSearchMetadata = metadata
+
 	t.app.QueueUpdateDraw(func() {
 		t.itemsList.Clear()
 		t.itemSummary.Clear()
 		t.itemsList.AddItem("Loading items…", "", 0, nil)
+		t.itemsList.SetTitle(t.itemsListTitle(true))
+		t.updateItemsHelp()
 		t.pages.SwitchToPage("items")
 		t.app.SetFocus(t.itemsList)
 	})
 
+	ctx, cancel := context.WithTimeout(t.baseCtx, 300*time.Second)
+	seq := t.client.GetItems(ctx, collectionID)
+	t.startItemStream(label, metadata, seq, cancel)
+}
+
+func (t *TUI) startItemStream(label string, metadata map[string]string, seq iter.Seq2[*stac.Item, error], cancel context.CancelFunc) {
+	t.cancelItemIteration()
+
 	t.items = nil
 	t.currentItem = nil
-
-	if t.stacItemsIteratorCancel != nil {
-		t.stacItemsIteratorCancel()
-		t.stacItemsIteratorCancel = nil
-	}
-	if t.stacItemsIteratorStop != nil {
-		t.stacItemsIteratorStop()
-		t.stacItemsIteratorStop = nil
-	}
+	t.activeResultLabel = label
+	t.lastSearchMetadata = metadata
 
 	t.itemLoadingMutex.Lock()
 	t.isLoadingItems = false
 	t.isExhausted = false
 	t.itemLoadingMutex.Unlock()
 
-	ctx, cancel := context.WithTimeout(t.baseCtx, 300*time.Second)
 	t.stacItemsIteratorCancel = cancel
-
-	seq := t.client.GetItems(ctx, collectionID)
 	next, stop := iter.Pull2(seq)
 	t.stacItemsIterator = next
 	t.stacItemsIteratorStop = stop
+
+	t.app.QueueUpdateDraw(func() {
+		t.updateItemsHelp()
+	})
 
 	t.loadNextPage()
 }
@@ -250,7 +288,7 @@ func (t *TUI) loadNextPage() {
 	t.itemLoadingMutex.Unlock()
 
 	t.app.QueueUpdateDraw(func() {
-		t.itemsList.SetTitle("Items (loading...)")
+		t.itemsList.SetTitle(t.itemsListTitle(true))
 		if c := t.itemsList.GetItemCount(); c > 0 {
 			main, _ := t.itemsList.GetItemText(c - 1)
 			if main == "Load more" || main == "Loading items…" {
@@ -288,7 +326,7 @@ func (t *TUI) loadNextPage() {
 		}
 
 		t.app.QueueUpdateDraw(func() {
-			t.itemsList.SetTitle("Items")
+			t.itemsList.SetTitle(t.itemsListTitle(false))
 			if c := t.itemsList.GetItemCount(); c > 0 {
 				main, _ := t.itemsList.GetItemText(c - 1)
 				if main == "Loading items…" {

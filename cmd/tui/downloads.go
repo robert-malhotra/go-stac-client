@@ -53,10 +53,19 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 		SetText(fmt.Sprintf("Preparing download...\n%s", asset.Href)).
 		AddButtons([]string{"Cancel"})
 
+	previousFocus := t.app.GetFocus()
+	previousPage, _ := t.pages.GetFrontPage()
+
 	removeDownloadPage := func() {
 		t.app.QueueUpdateDraw(func() {
 			t.pages.HidePage("download")
 			t.pages.RemovePage("download")
+			if previousPage != "" {
+				t.pages.SwitchToPage(previousPage)
+			}
+			if previousFocus != nil {
+				t.app.SetFocus(previousFocus)
+			}
 		})
 	}
 

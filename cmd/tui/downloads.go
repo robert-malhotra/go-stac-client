@@ -53,27 +53,24 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 		SetText(fmt.Sprintf("Preparing download...\n%s", asset.Href)).
 		AddButtons([]string{"Cancel"})
 
-	var (
-		previousFocus tview.Primitive
-		previousPage  string
-		restoreOnce   sync.Once
-	)
+	previousFocus := t.app.GetFocus()
+	previousPage, _ := t.pages.GetFrontPage()
 
+	var restoreOnce sync.Once
 	removeDownloadPage := func() {
 		restoreOnce.Do(func() {
 			t.app.QueueUpdateDraw(func() {
-				t.pages.HidePage("download")
-
 				if previousPage != "" {
 					t.pages.ShowPage(previousPage)
 					t.pages.SwitchToPage(previousPage)
 				}
 
+				t.pages.HidePage("download")
+				t.pages.RemovePage("download")
+
 				if previousFocus != nil {
 					t.app.SetFocus(previousFocus)
 				}
-
-				t.pages.RemovePage("download")
 			})
 		})
 	}
@@ -98,8 +95,6 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 		session.cancel()
 	})
 
-	previousFocus = t.app.GetFocus()
-	previousPage, _ = t.pages.GetFrontPage()
 	t.pages.RemovePage("download")
 	t.pages.AddPage("download", modal, true, false)
 	t.pages.ShowPage("download")

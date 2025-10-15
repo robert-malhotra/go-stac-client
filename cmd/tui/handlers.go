@@ -23,8 +23,8 @@ func (t *TUI) onInputCapture(event *tcell.EventKey) *tcell.EventKey {
 
 	// Handle 'j' key for JSON view
 	if event.Key() == tcell.KeyRune {
-		r := event.Rune()
-		if r == 'j' || r == 'J' {
+		switch r := event.Rune(); {
+		case r == 'j' || r == 'J':
 			switch currentPage {
 			case "collections":
 				index := t.collectionsList.GetCurrentItem()
@@ -44,6 +44,12 @@ func (t *TUI) onInputCapture(event *tcell.EventKey) *tcell.EventKey {
 				if t.currentItem != nil {
 					t.showJSON(fmt.Sprintf("Item %s", t.currentItem.Id), t.currentItem)
 				}
+				return nil
+			}
+		case r == 's' || r == 'S':
+			switch currentPage {
+			case "collections", "items":
+				t.openBasicSearchForm()
 				return nil
 			}
 		}
@@ -75,6 +81,18 @@ func (t *TUI) onInputCapture(event *tcell.EventKey) *tcell.EventKey {
 		}
 	}
 
+	if currentPage == searchPageID {
+		switch event.Key() {
+		case tcell.KeyTab, tcell.KeyBacktab:
+			if t.app.GetFocus() == t.searchCollectionsList {
+				t.app.SetFocus(t.searchForm)
+			} else {
+				t.app.SetFocus(t.searchCollectionsList)
+			}
+			return nil
+		}
+	}
+
 	// Escape key navigation
 	if event.Key() == tcell.KeyEscape {
 		// If JSON view is active, let its own handler deal with Escape.
@@ -94,6 +112,9 @@ func (t *TUI) onInputCapture(event *tcell.EventKey) *tcell.EventKey {
 		case "collections":
 			t.pages.SwitchToPage("input")
 			t.app.SetFocus(t.input)
+			return nil
+		case searchPageID:
+			t.closeSearchForm()
 			return nil
 		}
 	}

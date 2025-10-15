@@ -11,15 +11,18 @@ import (
 )
 
 type TUI struct {
-	app             *tview.Application
-	pages           *tview.Pages
-	input           *tview.InputField
-	collectionsList *tview.List
-	colDetail       *tview.TextView
-	itemsList       *tview.List
-	itemSummary     *tview.TextView
-	itemsHelp       *tview.TextView
-	itemDetail      *tview.Grid
+	app                   *tview.Application
+	pages                 *tview.Pages
+	input                 *tview.InputField
+	searchForm            *tview.Form
+	searchSummary         *tview.InputField
+	searchCollectionsList *tview.List
+	collectionsList       *tview.List
+	colDetail             *tview.TextView
+	itemsList             *tview.List
+	itemSummary           *tview.TextView
+	itemsHelp             *tview.TextView
+	itemDetail            *tview.Grid
 
 	// Item detail panes
 	itemProperties  *tview.TextView
@@ -32,8 +35,11 @@ type TUI struct {
 	cols   []*stac.Collection
 	items  []*stac.Item
 
-	activeResultLabel  string
-	lastSearchMetadata map[string]string
+	activeResultLabel         string
+	lastSearchMetadata        map[string]string
+	searchReturnPage          string
+	searchSelectedOrder       []string
+	searchSelectedCollections map[string]bool
 
 	currentItem *stac.Item
 

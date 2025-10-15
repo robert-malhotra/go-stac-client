@@ -20,6 +20,14 @@ type TUI struct {
 	itemSummary     *tview.TextView
 	itemsHelp       *tview.TextView
 	itemDetail      *tview.Grid
+	searchForm      *tview.Form
+
+	searchCollectionsField *tview.InputField
+	searchDatetimeField    *tview.InputField
+	searchBboxField        *tview.InputField
+	searchLimitField       *tview.InputField
+	searchSortField        *tview.InputField
+	searchReturnPage       string
 
 	// Item detail panes
 	itemProperties  *tview.TextView

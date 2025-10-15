@@ -92,7 +92,7 @@ func (v *jsonViewer) Close() {
 	v.snapshotData = nil
 	v.mu.Unlock()
 
-	v.tui.app.QueueUpdateDraw(func() {
+	updateUI := func() {
 		if prevPage != "" {
 			v.tui.pages.SwitchToPage(prevPage)
 		}
@@ -101,7 +101,9 @@ func (v *jsonViewer) Close() {
 		if prevFocus != nil {
 			v.tui.app.SetFocus(prevFocus)
 		}
-	})
+	}
+
+	go v.tui.app.QueueUpdateDraw(updateUI)
 }
 
 func (v *jsonViewer) Save() {

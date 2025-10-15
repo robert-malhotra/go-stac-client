@@ -62,10 +62,13 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 		SetText(fmt.Sprintf("Downloading %s", asset.Href)).
 		AddButtons([]string{"Cancel"})
 
-	removeDownloadPage := func() {
-		t.app.QueueUpdateDraw(func() {
-			t.pages.HidePage("download")
-			t.pages.RemovePage("download")
+	var closeOnce sync.Once
+	closeDownloadPage := func() {
+		closeOnce.Do(func() {
+			t.app.QueueUpdateDraw(func() {
+				t.pages.HidePage("download")
+				t.pages.RemovePage("download")
+			})
 		})
 	}
 
@@ -79,13 +82,14 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 			cancelOnce.Do(func() {
 				userCancelled.Store(true)
 				cancel()
-				removeDownloadPage()
+				closeDownloadPage()
 			})
 		},
 	}
 	t.setActiveDownload(session)
 
 	modal.SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+		closeDownloadPage()
 		session.cancel()
 	})
 
@@ -122,7 +126,7 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 		}
 
 		if err != nil {
-			removeDownloadPage()
+			closeDownloadPage()
 			t.showError(fmt.Sprintf("Download failed: %v", err))
 			return
 		}
@@ -136,7 +140,7 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 			modal.ClearButtons()
 			modal.AddButtons([]string{"Close"})
 			modal.SetDoneFunc(func(buttonIndex int, buttonLabel string) {
-				removeDownloadPage()
+				closeDownloadPage()
 			})
 			t.app.SetFocus(modal)
 		})

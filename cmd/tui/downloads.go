@@ -62,14 +62,18 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 	removeDownloadPage := func() {
 		restoreOnce.Do(func() {
 			t.app.QueueUpdateDraw(func() {
+				t.pages.HidePage("download")
+
 				if previousPage != "" {
+					t.pages.ShowPage(previousPage)
 					t.pages.SwitchToPage(previousPage)
 				}
-				t.pages.HidePage("download")
-				t.pages.RemovePage("download")
+
 				if previousFocus != nil {
 					t.app.SetFocus(previousFocus)
 				}
+
+				t.pages.RemovePage("download")
 			})
 		})
 	}
@@ -97,7 +101,9 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 	previousFocus = t.app.GetFocus()
 	previousPage, _ = t.pages.GetFrontPage()
 	t.pages.RemovePage("download")
-	t.pages.AddPage("download", modal, true, true)
+	t.pages.AddPage("download", modal, true, false)
+	t.pages.ShowPage("download")
+	t.pages.SwitchToPage("download")
 	t.app.SetFocus(modal)
 
 	dest := formatting.GetOutputFilename(asset.Href)

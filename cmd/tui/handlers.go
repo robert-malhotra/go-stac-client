@@ -77,9 +77,10 @@ func (t *TUI) onInputCapture(event *tcell.EventKey) *tcell.EventKey {
 
 	// Escape key navigation
 	if event.Key() == tcell.KeyEscape {
-		// If JSON view is active, let its own handler deal with Escape.
 		if currentPage == jsonPageID {
-			return event
+			// Exit the JSON view and restore the previous page/focus.
+			t.closeJSONView()
+			return nil
 		}
 
 		switch currentPage {

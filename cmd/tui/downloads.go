@@ -64,14 +64,16 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 		SetText(fmt.Sprintf("Downloading %s", asset.Href)).
 		AddButtons([]string{"Cancel"})
 
+	closeDownloadPage := func() {
+		t.pages.HidePage("download")
+		t.pages.RemovePage("download")
+		if previousFocus != nil {
+			t.app.SetFocus(previousFocus)
+		}
+	}
+
 	removeDownloadPage := func() {
-		t.app.QueueUpdateDraw(func() {
-			t.pages.HidePage("download")
-			t.pages.RemovePage("download")
-			if previousFocus != nil {
-				t.app.SetFocus(previousFocus)
-			}
-		})
+		t.app.QueueUpdateDraw(closeDownloadPage)
 	}
 
 	var (
@@ -142,7 +144,7 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 			modal.AddButtons([]string{"Close"})
 			modal.SetFocus(0)
 			modal.SetDoneFunc(func(buttonIndex int, buttonLabel string) {
-				removeDownloadPage()
+				closeDownloadPage()
 			})
 			t.app.SetFocus(modal)
 		})

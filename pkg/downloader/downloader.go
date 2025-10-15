@@ -2,6 +2,7 @@ package downloader
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,7 +14,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
+type ProgressFunc func(downloaded, total int64)
+
 func Download(ctx context.Context, assetURL string, destPath string) error {
+	return DownloadWithProgress(ctx, assetURL, destPath, nil)
+}
+
+func DownloadWithProgress(ctx context.Context, assetURL string, destPath string, progress ProgressFunc) error {
 	u, err := url.Parse(assetURL)
 	if err != nil {
 		return fmt.Errorf("failed to parse asset URL: %w", err)
@@ -21,15 +28,15 @@ func Download(ctx context.Context, assetURL string, destPath string) error {
 
 	switch u.Scheme {
 	case "http", "https":
-		return downloadHTTP(ctx, assetURL, destPath)
+		return downloadHTTP(ctx, assetURL, destPath, progress)
 	case "s3":
-		return downloadS3(ctx, u, destPath)
+		return downloadS3(ctx, u, destPath, progress)
 	default:
 		return fmt.Errorf("unsupported URL scheme: %s", u.Scheme)
 	}
 }
 
-func downloadHTTP(ctx context.Context, assetURL string, destPath string) error {
+func downloadHTTP(ctx context.Context, assetURL string, destPath string, progress ProgressFunc) (err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, assetURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create HTTP request: %w", err)
@@ -49,9 +56,19 @@ func downloadHTTP(ctx context.Context, assetURL string, destPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create destination file: %w", err)
 	}
-	defer out.Close()
+	defer func() {
+		out.Close()
+		if err != nil {
+			_ = os.Remove(destPath)
+		}
+	}()
 
-	_, err = io.Copy(out, resp.Body)
+	total := resp.ContentLength
+	if progress != nil {
+		progress(0, total)
+	}
+
+	_, err = copyWithProgress(ctx, out, resp.Body, total, progress)
 	if err != nil {
 		return fmt.Errorf("failed to write asset to file: %w", err)
 	}
@@ -59,7 +76,7 @@ func downloadHTTP(ctx context.Context, assetURL string, destPath string) error {
 	return nil
 }
 
-func downloadS3(ctx context.Context, u *url.URL, destPath string) error {
+func downloadS3(ctx context.Context, u *url.URL, destPath string, progress ProgressFunc) (err error) {
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to load AWS config: %w", err)
@@ -83,12 +100,57 @@ func downloadS3(ctx context.Context, u *url.URL, destPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create destination file: %w", err)
 	}
-	defer out.Close()
+	defer func() {
+		out.Close()
+		if err != nil {
+			_ = os.Remove(destPath)
+		}
+	}()
 
-	_, err = io.Copy(out, result.Body)
+	if progress != nil {
+		progress(0, *result.ContentLength)
+	}
+
+	_, err = copyWithProgress(ctx, out, result.Body, *result.ContentLength, progress)
 	if err != nil {
 		return fmt.Errorf("failed to write asset to file: %w", err)
 	}
 
 	return nil
+}
+
+func copyWithProgress(ctx context.Context, dst io.Writer, src io.Reader, total int64, progress ProgressFunc) (int64, error) {
+	const defaultBufferSize = 32 * 1024
+	buf := make([]byte, defaultBufferSize)
+	var written int64
+
+	for {
+		if ctx != nil {
+			if err := ctx.Err(); err != nil {
+				return written, err
+			}
+		}
+
+		n, readErr := src.Read(buf)
+		if n > 0 {
+			w, writeErr := dst.Write(buf[:n])
+			if writeErr != nil {
+				return written, writeErr
+			}
+			if w != n {
+				return written, io.ErrShortWrite
+			}
+			written += int64(w)
+			if progress != nil {
+				progress(written, total)
+			}
+		}
+
+		if readErr != nil {
+			if errors.Is(readErr, io.EOF) {
+				return written, nil
+			}
+			return written, readErr
+		}
+	}
 }

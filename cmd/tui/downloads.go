@@ -64,6 +64,7 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 			go t.app.QueueUpdateDraw(func() {
 				t.pages.HidePage("download")
 				t.pages.RemovePage("download")
+				t.restoreFocusAfterModal()
 			})
 		})
 	}

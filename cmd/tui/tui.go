@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	stac "github.com/planetlabs/go-stac"
@@ -57,6 +58,16 @@ type TUI struct {
 	activeDownload *downloadSession
 
 	jsonViewer *jsonViewer
+
+	searchForm             *tview.Form
+	searchCollectionsField *tview.InputField
+	searchDatetimeField    *tview.InputField
+
+	datePicker     *datePicker
+	stagedStart    time.Time
+	stagedEnd      time.Time
+	hasStagedStart bool
+	hasStagedEnd   bool
 }
 
 func NewTUI(ctx context.Context) *TUI {

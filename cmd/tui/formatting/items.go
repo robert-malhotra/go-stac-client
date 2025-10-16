@@ -53,3 +53,64 @@ func FormatProperties(properties map[string]interface{}, indent int) string {
 	}
 	return builder.String()
 }
+
+func FormatAssetListItem(key string, asset *stac.Asset) (string, string) {
+	primary := strings.TrimSpace(key)
+	if asset != nil {
+		if primary == "" {
+			primary = strings.TrimSpace(asset.Title)
+		}
+		if primary == "" {
+			primary = strings.TrimSpace(asset.Type)
+		}
+	}
+	if primary == "" {
+		primary = "(asset)"
+	}
+
+	secondary := ""
+	if asset != nil {
+		title := strings.TrimSpace(asset.Title)
+		if title != "" && !strings.EqualFold(title, primary) {
+			secondary = title
+		} else {
+			typ := strings.TrimSpace(asset.Type)
+			if typ != "" && !strings.EqualFold(typ, primary) {
+				secondary = typ
+			}
+		}
+	}
+
+	return primary, secondary
+}
+
+func FormatAssetDetailBlock(key string, asset *stac.Asset) string {
+	if asset == nil {
+		return "No asset details available."
+	}
+
+	var builder strings.Builder
+	write := func(label, value string) {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return
+		}
+		builder.WriteString(fmt.Sprintf("[yellow]%s: [white]%s\n", label, value))
+	}
+
+	write("Key", strings.TrimSpace(key))
+	write("Title", asset.Title)
+	write("Description", asset.Description)
+	write("Type", asset.Type)
+	if len(asset.Roles) > 0 {
+		write("Roles", strings.Join(asset.Roles, ", "))
+	}
+	write("Created", asset.Created)
+	write("Href", asset.Href)
+
+	text := strings.TrimRight(builder.String(), "\n")
+	if text == "" {
+		return "No asset details available."
+	}
+	return text
+}

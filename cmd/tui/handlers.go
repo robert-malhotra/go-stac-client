@@ -23,8 +23,13 @@ func (t *TUI) onInputCapture(event *tcell.EventKey) *tcell.EventKey {
 
 	// Handle 'j' key for JSON view
 	if event.Key() == tcell.KeyRune {
-		r := event.Rune()
-		if r == 'j' || r == 'J' {
+		switch event.Rune() {
+		case 'a', 'A':
+			if currentPage == "collections" || currentPage == "items" {
+				t.openAdvancedSearchEditor()
+				return nil
+			}
+		case 'j', 'J':
 			switch currentPage {
 			case "collections":
 				index := t.collectionsList.GetCurrentItem()

@@ -11,20 +11,26 @@ import (
 )
 
 type TUI struct {
-	app             *tview.Application
-	pages           *tview.Pages
-	input           *tview.InputField
-	collectionsList *tview.List
-	colDetail       *tview.TextView
-	itemsList       *tview.List
-	itemSummary     *tview.TextView
-	itemsHelp       *tview.TextView
-	itemDetail      *tview.Grid
+	app                   *tview.Application
+	pages                 *tview.Pages
+	input                 *tview.InputField
+	searchForm            *tview.Form
+	searchSummary         *tview.InputField
+	searchDatetime        *tview.InputField
+	searchBbox            *tview.InputField
+	searchLimit           *tview.InputField
+	searchCollectionsList *tview.List
+	collectionsList       *tview.List
+	colDetail             *tview.TextView
+	itemsList             *tview.List
+	itemSummary           *tview.TextView
+	itemsHelp             *tview.TextView
+	itemDetail            *tview.Grid
 
 	// Item detail panes
 	itemProperties  *tview.TextView
 	itemAssets      *tview.List
-	itemLinks       *tview.List
+	itemAssetDetail *tview.TextView
 	itemDetailPanes []tview.Primitive
 	itemDetailFocus int
 
@@ -32,10 +38,13 @@ type TUI struct {
 	cols   []*stac.Collection
 	items  []*stac.Item
 
-	activeResultLabel  string
-	lastSearchMetadata map[string]string
-
-	currentItem *stac.Item
+	activeResultLabel         string
+	lastSearchMetadata        map[string]string
+	searchReturnPage          string
+	searchSelectedOrder       []string
+	searchSelectedCollections map[string]bool
+	currentItem               *stac.Item
+	itemAssetEntries          []assetListEntry
 
 	// Iterator for items (used synchronously, on-demand)
 	stacItemsIterator       func() (*stac.Item, error, bool)

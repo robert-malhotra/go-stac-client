@@ -16,6 +16,9 @@ type TUI struct {
 	input                 *tview.InputField
 	searchForm            *tview.Form
 	searchSummary         *tview.InputField
+	searchDatetime        *tview.InputField
+	searchBbox            *tview.InputField
+	searchLimit           *tview.InputField
 	searchCollectionsList *tview.List
 	collectionsList       *tview.List
 	colDetail             *tview.TextView

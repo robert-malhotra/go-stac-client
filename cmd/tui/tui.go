@@ -14,6 +14,7 @@ type TUI struct {
 	app             *tview.Application
 	pages           *tview.Pages
 	input           *tview.InputField
+	advancedSearch  *tview.TextArea
 	collectionsList *tview.List
 	colDetail       *tview.TextView
 	itemsList       *tview.List
@@ -57,6 +58,10 @@ type TUI struct {
 	activeDownload *downloadSession
 
 	jsonViewer *jsonViewer
+
+	advancedSearchRawJSON     string
+	advancedSearchReturnPage  string
+	advancedSearchReturnFocus tview.Primitive
 }
 
 func NewTUI(ctx context.Context) *TUI {

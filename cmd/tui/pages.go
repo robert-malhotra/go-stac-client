@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"iter"
+	"strings"
 	"time"
 
+	"github.com/gdamore/tcell/v2"
 	stac "github.com/planetlabs/go-stac"
 	"github.com/rivo/tview"
 	"github.com/robert-malhotra/go-stac-client/cmd/tui/formatting"
@@ -17,9 +20,13 @@ func (t *TUI) setupPages() {
 	t.setupCollectionsPage()
 	t.setupItemsPage()
 	t.setupItemDetailPage()
+	t.setupAdvancedSearchPage()
 }
 
-const itemsHelpControls = "[yellow]↑/↓[white] select  [yellow]Enter[white] view detail  [yellow]j[white] raw JSON  [yellow]Esc[white] back  [yellow]Ctrl+C[white] quit"
+const (
+	itemsHelpControls           = "[yellow]↑/↓[white] select  [yellow]Enter[white] view detail  [yellow]j[white] raw JSON  [yellow]a[white] advanced search  [yellow]Esc[white] back  [yellow]Ctrl+C[white] quit"
+	defaultAdvancedSearchPrompt = "{\n  \"collections\": [],\n  \"limit\": 10\n}\n"
+)
 
 func (t *TUI) setupInputPage() {
 	t.input = tview.NewInputField().
@@ -50,7 +57,7 @@ func (t *TUI) setupCollectionsPage() {
 		AddItem(t.collectionsList, 0, 1, true).
 		AddItem(t.colDetail, 0, 2, false)
 
-	collectionsHelp := formatting.MakeHelpText("[yellow]↑/↓[white] select  [yellow]Enter[white] load items  [yellow]j[white] raw JSON  [yellow]Tab[white] toggle focus  [yellow]Esc[white] back  [yellow]Ctrl+C[white] quit")
+	collectionsHelp := formatting.MakeHelpText("[yellow]↑/↓[white] select  [yellow]Enter[white] load items  [yellow]a[white] advanced search  [yellow]j[white] raw JSON  [yellow]Tab[white] toggle focus  [yellow]Esc[white] back  [yellow]Ctrl+C[white] quit")
 	collectionsPage := tview.NewFlex().
 		SetDirection(tview.FlexRow).
 		AddItem(collectionsContent, 0, 1, true).
@@ -110,6 +117,34 @@ func (t *TUI) setupItemsPage() {
 	})
 
 	t.pages.AddPage("items", itemsPage, true, false)
+}
+
+func (t *TUI) setupAdvancedSearchPage() {
+	t.advancedSearch = tview.NewTextArea()
+	t.advancedSearch.SetBorder(true).SetTitle("Advanced Search (CQL2 JSON)")
+	t.advancedSearch.SetPlaceholder(defaultAdvancedSearchPrompt)
+
+	instructions := formatting.MakeHelpText("[yellow]Ctrl+Enter[white] run search  [yellow]Esc[white] cancel  [yellow]Ctrl+C[white] quit")
+
+	advancedPage := tview.NewFlex().
+		SetDirection(tview.FlexRow).
+		AddItem(t.advancedSearch, 0, 1, true).
+		AddItem(instructions, 3, 0, false)
+
+	t.advancedSearch.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		switch {
+		case event.Key() == tcell.KeyEnter && event.Modifiers()&tcell.ModCtrl != 0:
+			raw := t.advancedSearch.GetText()
+			t.runAdvancedSearch(raw)
+			return nil
+		case event.Key() == tcell.KeyEscape:
+			t.closeAdvancedSearchEditor()
+			return nil
+		}
+		return event
+	})
+
+	t.pages.AddPage("advancedSearch", advancedPage, true, false)
 }
 
 func (t *TUI) itemsListTitle(loading bool) string {
@@ -402,4 +437,120 @@ func (t *TUI) showError(message string) {
 		t.pages.AddPage("error", modal, false, true)
 		t.pages.ShowPage("error")
 	})
+}
+
+func (t *TUI) openAdvancedSearchEditor() {
+	if t.client == nil {
+		t.showError("Load a STAC API before running an advanced search.")
+		return
+	}
+
+	if t.advancedSearch == nil {
+		return
+	}
+
+	currentPage, _ := t.pages.GetFrontPage()
+	t.advancedSearchReturnPage = currentPage
+	t.advancedSearchReturnFocus = t.app.GetFocus()
+
+	text := t.advancedSearchRawJSON
+	t.app.QueueUpdateDraw(func() {
+		if strings.TrimSpace(text) == "" {
+			t.advancedSearch.SetText("", true)
+		} else {
+			t.advancedSearch.SetText(text, true)
+		}
+		t.pages.SwitchToPage("advancedSearch")
+		t.app.SetFocus(t.advancedSearch)
+	})
+}
+
+func (t *TUI) closeAdvancedSearchEditor() {
+	if t.advancedSearch != nil {
+		t.advancedSearchRawJSON = t.advancedSearch.GetText()
+	}
+
+	returnPage := t.advancedSearchReturnPage
+	if returnPage == "" {
+		returnPage = "collections"
+	}
+
+	t.advancedSearchReturnPage = ""
+	focus := t.advancedSearchReturnFocus
+	t.advancedSearchReturnFocus = nil
+
+	t.app.QueueUpdateDraw(func() {
+		t.pages.SwitchToPage(returnPage)
+
+		if focus != nil {
+			t.app.SetFocus(focus)
+			return
+		}
+
+		switch returnPage {
+		case "items":
+			t.app.SetFocus(t.itemsList)
+		case "collections":
+			t.app.SetFocus(t.collectionsList)
+		case "input":
+			t.app.SetFocus(t.input)
+		default:
+			t.app.SetFocus(t.pages)
+		}
+	})
+}
+
+func (t *TUI) runAdvancedSearch(raw string) {
+	if t.advancedSearch != nil {
+		t.advancedSearchRawJSON = raw
+	}
+
+	if t.client == nil {
+		t.showError("Load a STAC API before running an advanced search.")
+		return
+	}
+
+	if strings.TrimSpace(raw) == "" {
+		t.showError("Enter CQL2 JSON before running an advanced search.")
+		return
+	}
+
+	var params client.SearchParams
+	if err := json.Unmarshal([]byte(raw), &params); err != nil {
+		t.showError(fmt.Sprintf("Invalid search JSON: %v", err))
+		return
+	}
+
+	label := "Advanced Search"
+	metadata := map[string]string{
+		"mode":     "advanced",
+		"raw_json": raw,
+	}
+	if len(params.Collections) > 0 {
+		metadata["collections"] = strings.Join(params.Collections, ", ")
+	}
+	if params.Datetime != "" {
+		metadata["datetime"] = params.Datetime
+	}
+	if params.Limit > 0 {
+		metadata["limit"] = fmt.Sprintf("%d", params.Limit)
+	}
+
+	t.app.QueueUpdateDraw(func() {
+		t.pages.SwitchToPage("items")
+		t.itemsList.Clear()
+		t.itemSummary.Clear()
+		t.itemsList.AddItem("Loading items…", "", 0, nil)
+		t.itemsList.SetTitle(t.itemsListTitle(true))
+		t.updateItemsHelp()
+		t.app.SetFocus(t.itemsList)
+	})
+
+	ctx, cancel := context.WithTimeout(t.baseCtx, 300*time.Second)
+	seq := t.client.SearchCQL2(ctx, params)
+
+	t.startItemStream(label, metadata, seq, cancel)
+
+	t.advancedSearchReturnPage = ""
+	t.advancedSearchReturnFocus = nil
 }

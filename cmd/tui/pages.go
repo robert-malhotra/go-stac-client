@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"strconv"
 	"strings"
 	"time"
 
@@ -81,6 +82,30 @@ func (t *TUI) setupSearchFormPage() {
 	t.searchForm.SetBorder(true).SetTitle("Search Parameters")
 	t.searchForm.SetButtonsAlign(tview.AlignRight)
 
+	t.searchDatetime = tview.NewInputField().
+		SetLabel("Datetime: ").
+		SetFieldWidth(60).
+		SetPlaceholder("YYYY-MM-DD/YYYY-MM-DD or open range")
+	t.searchForm.AddFormItem(t.searchDatetime)
+
+	t.searchBbox = tview.NewInputField().
+		SetLabel("BBox: ").
+		SetFieldWidth(60).
+		SetPlaceholder("minLon,minLat,maxLon,maxLat")
+	t.searchForm.AddFormItem(t.searchBbox)
+
+	limitField := tview.NewInputField().
+		SetLabel("Limit: ").
+		SetFieldWidth(10)
+	limitField.SetAcceptanceFunc(func(text string, ch rune) bool {
+		if ch == 0 { // allow deletions
+			return true
+		}
+		return ch >= '0' && ch <= '9'
+	})
+	t.searchLimit = limitField
+	t.searchForm.AddFormItem(limitField)
+
 	summaryField := tview.NewInputField().
 		SetLabel("Selected collections: ").
 		SetFieldWidth(60)
@@ -144,12 +169,48 @@ func (t *TUI) runBasicSearch() {
 
 	ids := t.selectedSearchCollectionIDs()
 	params := client.SearchParams{Collections: ids}
-	summary := t.searchSummaryText(ids)
-	label := fmt.Sprintf("Search – %s", summary)
 	metadata := map[string]string{}
 	if len(ids) > 0 {
 		metadata["collections"] = strings.Join(ids, ",")
 	}
+
+	if t.searchDatetime != nil {
+		if datetime := strings.TrimSpace(t.searchDatetime.GetText()); datetime != "" {
+			params.Datetime = datetime
+			metadata["datetime"] = datetime
+		}
+	}
+
+	if t.searchBbox != nil {
+		if bboxText := strings.TrimSpace(t.searchBbox.GetText()); bboxText != "" {
+			bbox, normalized, err := parseBBoxInput(bboxText)
+			if err != nil {
+				t.showError(err.Error())
+				return
+			}
+			params.Bbox = bbox
+			metadata["bbox"] = normalized
+		}
+	}
+
+	if t.searchLimit != nil {
+		if limitText := strings.TrimSpace(t.searchLimit.GetText()); limitText != "" {
+			limit, err := strconv.Atoi(limitText)
+			if err != nil {
+				t.showError("Limit must be a positive integer")
+				return
+			}
+			if limit <= 0 {
+				t.showError("Limit must be greater than zero")
+				return
+			}
+			params.Limit = limit
+			metadata["limit"] = limitText
+		}
+	}
+
+	summary := t.searchSummaryText(ids)
+	label := fmt.Sprintf("Search – %s", summary)
 
 	t.app.QueueUpdateDraw(func() {
 		t.pages.HidePage(searchPageID)
@@ -179,6 +240,7 @@ func (t *TUI) openBasicSearchForm() {
 
 	t.ensureSearchSelectionsValid()
 	t.rebuildSearchCollectionsList()
+	t.populateSearchFormFields()
 	t.updateSearchCollectionsSummary()
 
 	currentPage, _ := t.pages.GetFrontPage()
@@ -257,12 +319,58 @@ func (t *TUI) searchCollectionListTexts(col *stac.Collection) (string, string) {
 	if checked {
 		indicator = "[green][x][white]"
 	}
-	label := col.Title
+	label := strings.TrimSpace(col.Title)
 	if label == "" {
 		label = col.Id
 	}
 	main := fmt.Sprintf("%s %s", indicator, label)
-	return main, col.Id
+
+	secondary := ""
+	if id := strings.TrimSpace(col.Id); !strings.EqualFold(label, id) {
+		secondary = col.Id
+	}
+
+	return main, secondary
+}
+
+func parseBBoxInput(text string) ([]float64, string, error) {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return nil, "", nil
+	}
+
+	parts := strings.FieldsFunc(trimmed, func(r rune) bool {
+		switch r {
+		case ',', ' ', '\n', '\t':
+			return true
+		default:
+			return false
+		}
+	})
+
+	if len(parts) == 0 {
+		return nil, "", fmt.Errorf("bbox must have 4 or 6 numeric values")
+	}
+
+	coords := make([]float64, 0, len(parts))
+	normalized := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part == "" {
+			continue
+		}
+		value, err := strconv.ParseFloat(part, 64)
+		if err != nil {
+			return nil, "", fmt.Errorf("bbox must contain only numeric values")
+		}
+		coords = append(coords, value)
+		normalized = append(normalized, strconv.FormatFloat(value, 'f', -1, 64))
+	}
+
+	if len(coords) != 4 && len(coords) != 6 {
+		return nil, "", fmt.Errorf("bbox must have 4 or 6 numeric values")
+	}
+
+	return coords, strings.Join(normalized, ","), nil
 }
 
 func (t *TUI) toggleSearchCollection(index int) {
@@ -309,6 +417,25 @@ func (t *TUI) updateSearchCollectionsSummary() {
 	ids := t.selectedSearchCollectionIDs()
 	summary := t.searchSummaryText(ids)
 	t.searchSummary.SetText(summary)
+}
+
+func (t *TUI) populateSearchFormFields() {
+	setField := func(field *tview.InputField, key string) {
+		if field == nil {
+			return
+		}
+		value := ""
+		if t.lastSearchMetadata != nil {
+			if v, ok := t.lastSearchMetadata[key]; ok {
+				value = v
+			}
+		}
+		field.SetText(value)
+	}
+
+	setField(t.searchDatetime, "datetime")
+	setField(t.searchBbox, "bbox")
+	setField(t.searchLimit, "limit")
 }
 
 func (t *TUI) selectedSearchCollectionIDs() []string {

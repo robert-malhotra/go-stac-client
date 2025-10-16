@@ -15,6 +15,7 @@ import (
 func (t *TUI) setupPages() {
 	t.setupInputPage()
 	t.setupCollectionsPage()
+	t.setupSearchFormPage()
 	t.setupItemsPage()
 	t.setupItemDetailPage()
 }

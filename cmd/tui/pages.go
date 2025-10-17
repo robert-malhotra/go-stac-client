@@ -123,10 +123,33 @@ func (t *TUI) setupSearchFormPage() {
 	t.searchForm.SetCancelFunc(func() {
 		t.closeSearchForm()
 	})
+	t.searchForm.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event == nil || t.app == nil {
+			return event
+		}
+
+		switch event.Key() {
+		case tcell.KeyUp:
+			if t.moveSearchFormFocus(-1) {
+				return nil
+			}
+		case tcell.KeyDown:
+			if t.moveSearchFormFocus(1) {
+				return nil
+			}
+		case tcell.KeyTab, tcell.KeyBacktab:
+			if t.searchCollectionsList != nil {
+				t.app.SetFocus(t.searchCollectionsList)
+			}
+			return nil
+		}
+
+		return event
+	})
 
 	t.searchCollectionsList = tview.NewList()
 	t.searchCollectionsList.SetBorder(true).SetTitle("Collections")
-	t.searchCollectionsList.ShowSecondaryText(true)
+	t.searchCollectionsList.ShowSecondaryText(false)
 	t.searchCollectionsList.SetWrapAround(false)
 	t.searchCollectionsList.SetSelectedFunc(func(index int, mainText string, secondaryText string, shortcut rune) {
 		t.toggleSearchCollection(index)
@@ -258,6 +281,172 @@ func (t *TUI) openBasicSearchForm() {
 	t.app.SetFocus(t.searchCollectionsList)
 }
 
+func (t *TUI) focusSearchFormFirstField() {
+	if t.searchForm == nil {
+		return
+	}
+
+	if index := t.searchFormItemIndex(t.searchDatetime); index >= 0 && t.isSearchFormIndexFocusable(index) {
+		t.setSearchFormFocus(index)
+		return
+	}
+
+	total := t.searchForm.GetFormItemCount() + t.searchForm.GetButtonCount()
+	for index := 0; index < total; index++ {
+		if t.isSearchFormIndexFocusable(index) {
+			t.setSearchFormFocus(index)
+			return
+		}
+	}
+}
+
+func (t *TUI) focusSearchFormLastElement() {
+	if t.searchForm == nil {
+		return
+	}
+
+	total := t.searchForm.GetFormItemCount() + t.searchForm.GetButtonCount()
+	for index := total - 1; index >= 0; index-- {
+		if t.isSearchFormIndexFocusable(index) {
+			t.setSearchFormFocus(index)
+			return
+		}
+	}
+}
+
+func (t *TUI) moveSearchFormFocus(delta int) bool {
+	if t.searchForm == nil || delta == 0 {
+		return false
+	}
+
+	total := t.searchForm.GetFormItemCount() + t.searchForm.GetButtonCount()
+	if total == 0 {
+		return false
+	}
+
+	current := t.searchFormFocusIndex()
+	if current < 0 {
+		if delta > 0 {
+			t.focusSearchFormFirstField()
+		} else {
+			t.focusSearchFormLastElement()
+		}
+		return true
+	}
+
+	next := current + delta
+	for next >= 0 && next < total {
+		if t.isSearchFormIndexFocusable(next) {
+			t.setSearchFormFocus(next)
+			return true
+		}
+		next += delta
+	}
+
+	return false
+}
+
+func (t *TUI) searchFormFocusIndex() int {
+	if t.searchForm == nil {
+		return -1
+	}
+
+	itemCount := t.searchForm.GetFormItemCount()
+	for index := 0; index < itemCount; index++ {
+		if item := t.searchForm.GetFormItem(index); item != nil && item.HasFocus() {
+			return index
+		}
+	}
+
+	buttonCount := t.searchForm.GetButtonCount()
+	for index := 0; index < buttonCount; index++ {
+		if button := t.searchForm.GetButton(index); button != nil && button.HasFocus() {
+			return itemCount + index
+		}
+	}
+
+	return -1
+}
+
+func (t *TUI) isSearchFormIndexFocusable(index int) bool {
+	if t.searchForm == nil {
+		return false
+	}
+
+	itemCount := t.searchForm.GetFormItemCount()
+	buttonCount := t.searchForm.GetButtonCount()
+	total := itemCount + buttonCount
+	if index < 0 || index >= total {
+		return false
+	}
+
+	if index < itemCount {
+		item := t.searchForm.GetFormItem(index)
+		if item == nil {
+			return false
+		}
+		if t.searchSummary != nil && item == t.searchSummary {
+			return false
+		}
+		return true
+	}
+
+	buttonIndex := index - itemCount
+	button := t.searchForm.GetButton(buttonIndex)
+	if button == nil {
+		return false
+	}
+	return !button.IsDisabled()
+}
+
+func (t *TUI) setSearchFormFocus(index int) {
+	if t.searchForm == nil {
+		return
+	}
+
+	itemCount := t.searchForm.GetFormItemCount()
+	buttonCount := t.searchForm.GetButtonCount()
+	total := itemCount + buttonCount
+	if index < 0 || index >= total {
+		return
+	}
+
+	t.searchForm.SetFocus(index)
+
+	if t.app == nil {
+		return
+	}
+
+	if index < itemCount {
+		if item := t.searchForm.GetFormItem(index); item != nil {
+			if primitive, ok := item.(tview.Primitive); ok {
+				t.app.SetFocus(primitive)
+			}
+		}
+		return
+	}
+
+	buttonIndex := index - itemCount
+	if button := t.searchForm.GetButton(buttonIndex); button != nil {
+		t.app.SetFocus(button)
+	}
+}
+
+func (t *TUI) searchFormItemIndex(target tview.FormItem) int {
+	if t.searchForm == nil || target == nil {
+		return -1
+	}
+
+	itemCount := t.searchForm.GetFormItemCount()
+	for index := 0; index < itemCount; index++ {
+		if t.searchForm.GetFormItem(index) == target {
+			return index
+		}
+	}
+
+	return -1
+}
+
 func (t *TUI) closeSearchForm() {
 	returnPage := t.searchReturnPage
 	if returnPage == "" {
@@ -324,13 +513,7 @@ func (t *TUI) searchCollectionListTexts(col *stac.Collection) (string, string) {
 		label = col.Id
 	}
 	main := fmt.Sprintf("%s %s", indicator, label)
-
-	secondary := ""
-	if id := strings.TrimSpace(col.Id); !strings.EqualFold(label, id) {
-		secondary = col.Id
-	}
-
-	return main, secondary
+	return main, ""
 }
 
 func parseBBoxInput(text string) ([]float64, string, error) {
@@ -787,8 +970,9 @@ func (t *TUI) loadNextPage() {
 			t.items = append(t.items, batch...)
 
 			for _, it := range batch {
-				t.itemsList.AddItem(it.Id, "", 0, func() {
-					t.showItemDetail(it)
+				item := it
+				t.itemsList.AddItem(item.Id, "", 0, func() {
+					t.showItemDetail(item)
 				})
 			}
 

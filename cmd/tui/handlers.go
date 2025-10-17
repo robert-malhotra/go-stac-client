@@ -83,13 +83,28 @@ func (t *TUI) onInputCapture(event *tcell.EventKey) *tcell.EventKey {
 
 	if currentPage == searchPageID {
 		switch event.Key() {
-		case tcell.KeyTab, tcell.KeyBacktab:
-			if t.app.GetFocus() == t.searchCollectionsList {
-				t.app.SetFocus(t.searchForm)
-			} else {
-				t.app.SetFocus(t.searchCollectionsList)
+		case tcell.KeyTab:
+			if t.searchCollectionsList != nil && t.searchCollectionsList.HasFocus() {
+				t.focusSearchFormFirstField()
+				return nil
 			}
-			return nil
+			if t.searchForm != nil && t.searchForm.HasFocus() {
+				if t.searchCollectionsList != nil {
+					t.app.SetFocus(t.searchCollectionsList)
+				}
+				return nil
+			}
+		case tcell.KeyBacktab:
+			if t.searchForm != nil && t.searchForm.HasFocus() {
+				if t.searchCollectionsList != nil {
+					t.app.SetFocus(t.searchCollectionsList)
+				}
+				return nil
+			}
+			if t.searchCollectionsList != nil && t.searchCollectionsList.HasFocus() {
+				t.focusSearchFormLastElement()
+				return nil
+			}
 		}
 	}
 
@@ -101,6 +116,14 @@ func (t *TUI) onInputCapture(event *tcell.EventKey) *tcell.EventKey {
 		}
 
 		switch currentPage {
+		case "download":
+			t.cancelActiveDownload()
+			t.restoreFocusAfterModal()
+			return nil
+		case "error", "info":
+			t.pages.HidePage(currentPage)
+			t.restoreFocusAfterModal()
+			return nil
 		case "itemDetail":
 			t.pages.SwitchToPage("items")
 			t.app.SetFocus(t.itemsList)
@@ -120,4 +143,41 @@ func (t *TUI) onInputCapture(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	return event
+}
+
+func (t *TUI) restoreFocusAfterModal() {
+	if t.app == nil || t.pages == nil {
+		return
+	}
+
+	currentPage, primitive := t.pages.GetFrontPage()
+	if primitive == nil {
+		return
+	}
+
+	switch currentPage {
+	case "items":
+		if t.itemsList != nil {
+			t.app.SetFocus(t.itemsList)
+		}
+	case "itemDetail":
+		if len(t.itemDetailPanes) > 0 {
+			if t.itemDetailFocus < 0 || t.itemDetailFocus >= len(t.itemDetailPanes) {
+				t.itemDetailFocus = 0
+			}
+			t.app.SetFocus(t.itemDetailPanes[t.itemDetailFocus])
+		}
+	case "collections":
+		if t.collectionsList != nil {
+			t.app.SetFocus(t.collectionsList)
+		}
+	case searchPageID:
+		if t.searchCollectionsList != nil {
+			t.app.SetFocus(t.searchCollectionsList)
+		}
+	case "input":
+		if t.input != nil {
+			t.app.SetFocus(t.input)
+		}
+	}
 }

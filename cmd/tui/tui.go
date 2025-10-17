@@ -30,7 +30,7 @@ type TUI struct {
 	// Item detail panes
 	itemProperties  *tview.TextView
 	itemAssets      *tview.List
-	itemLinks       *tview.List
+	itemAssetDetail *tview.TextView
 	itemDetailPanes []tview.Primitive
 	itemDetailFocus int
 
@@ -43,8 +43,8 @@ type TUI struct {
 	searchReturnPage          string
 	searchSelectedOrder       []string
 	searchSelectedCollections map[string]bool
-
-	currentItem *stac.Item
+	currentItem               *stac.Item
+	itemAssetEntries          []assetListEntry
 
 	// Iterator for items (used synchronously, on-demand)
 	stacItemsIterator       func() (*stac.Item, error, bool)

@@ -777,12 +777,17 @@ func (t *TUI) setupItemDetailPage() {
 	t.itemAssets = tview.NewList()
 	t.itemAssets.SetBorder(true).SetTitle("Assets")
 	t.itemAssets.ShowSecondaryText(false)
+	t.itemAssets.SetWrapAround(false)
 
-	t.itemLinks = tview.NewList()
-	t.itemLinks.SetBorder(true).SetTitle("Links")
-	t.itemLinks.ShowSecondaryText(false)
+	t.itemAssetDetail = tview.NewTextView().SetDynamicColors(true).SetWordWrap(true)
+	t.itemAssetDetail.SetBorder(true).SetTitle("Asset Details")
+	t.itemAssetDetail.SetText("Select an asset to view details.")
 
-	t.itemDetailPanes = []tview.Primitive{t.itemProperties, t.itemAssets, t.itemLinks}
+	t.itemAssets.SetChangedFunc(func(index int, mainText string, secondaryText string, shortcut rune) {
+		t.updateItemAssetDetail(index)
+	})
+
+	t.itemDetailPanes = []tview.Primitive{t.itemProperties, t.itemAssets, t.itemAssetDetail}
 
 	itemDetailHelp := formatting.MakeHelpText("[yellow]Tab[white] next pane  [yellow]Shift+Tab[white] previous pane  [yellow]Enter[white] download asset  [yellow]j[white] raw JSON  [yellow]Esc[white] back  [yellow]Ctrl+C[white] quit")
 	itemDetailPage := tview.NewFlex().

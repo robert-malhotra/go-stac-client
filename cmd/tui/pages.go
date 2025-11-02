@@ -34,16 +34,135 @@ func (t *TUI) setupInputPage() {
 		SetLabel("STAC API URL: ").
 		SetFieldWidth(60).
 		SetText("https://earth-search.aws.element84.com/v1")
-	t.input.SetBorder(true).SetTitle("Enter STAC API Root URL")
 	t.input.SetDoneFunc(t.onInputDone)
 
-	inputHelp := formatting.MakeHelpText("[yellow]Enter[white] load collections  [yellow]Ctrl+C[white] quit")
+	authOptions := []struct {
+		label string
+		mode  authMode
+	}{
+		{"None", authModeNone},
+		{"Bearer token", authModeBearer},
+		{"Basic auth", authModeBasic},
+		{"Custom header", authModeHeader},
+	}
+
+	t.authTypeDropDown = tview.NewDropDown().
+		SetLabel("Authentication: ").
+		SetFieldWidth(30)
+	optionLabels := make([]string, len(authOptions))
+	for i, opt := range authOptions {
+		optionLabels[i] = opt.label
+	}
+	t.authTypeDropDown.SetOptions(optionLabels, func(text string, index int) {
+		if index >= 0 && index < len(authOptions) {
+			t.authMode = authOptions[index].mode
+		} else {
+			t.authMode = authModeNone
+		}
+		t.updateAuthFieldVisibility()
+	})
+	t.authTypeDropDown.SetCurrentOption(0)
+	t.authMode = authModeNone
+
+	t.authTokenField = tview.NewInputField().
+		SetLabel("Bearer token: ").
+		SetFieldWidth(60)
+	t.authTokenField.SetDoneFunc(t.onInputDone)
+
+	t.authUsernameField = tview.NewInputField().
+		SetLabel("Username: ").
+		SetFieldWidth(40)
+	t.authUsernameField.SetDoneFunc(t.onInputDone)
+
+	t.authPasswordField = tview.NewInputField().
+		SetLabel("Password: ").
+		SetFieldWidth(40).
+		SetMaskCharacter('*')
+	t.authPasswordField.SetDoneFunc(t.onInputDone)
+
+	t.authHeaderNameField = tview.NewInputField().
+		SetLabel("Header name: ").
+		SetFieldWidth(40).
+		SetPlaceholder("e.g. Authorization")
+	t.authHeaderNameField.SetDoneFunc(t.onInputDone)
+
+	t.authHeaderValueField = tview.NewInputField().
+		SetLabel("Header value: ").
+		SetFieldWidth(60)
+	t.authHeaderValueField.SetDoneFunc(t.onInputDone)
+
+	t.authFieldsContainer = tview.NewFlex().SetDirection(tview.FlexRow)
+
+	inputForm := tview.NewFlex().SetDirection(tview.FlexRow)
+	inputForm.SetBorder(true).SetTitle("STAC API Connection")
+	inputForm.AddItem(t.input, 0, 1, true)
+	inputForm.AddItem(t.authTypeDropDown, 0, 1, false)
+	inputForm.AddItem(t.authFieldsContainer, 0, 1, false)
+
+	t.updateAuthFieldVisibility()
+
+	inputHelp := formatting.MakeHelpText("[yellow]Enter[white] connect  [yellow]Tab[white] next field  [yellow]Shift+Tab[white] previous field  [yellow]Ctrl+C[white] quit")
 	inputPage := tview.NewFlex().
 		SetDirection(tview.FlexRow).
-		AddItem(t.input, 0, 1, true).
+		AddItem(inputForm, 0, 1, true).
 		AddItem(inputHelp, 3, 0, false)
 
 	t.pages.AddPage("input", inputPage, true, true)
+}
+
+func (t *TUI) updateAuthFieldVisibility() {
+	if t.authFieldsContainer == nil {
+		return
+	}
+
+	t.authFieldsContainer.Clear()
+
+	if t.authTokenField != nil {
+		t.authTokenField.SetDisabled(true)
+	}
+	if t.authUsernameField != nil {
+		t.authUsernameField.SetDisabled(true)
+	}
+	if t.authPasswordField != nil {
+		t.authPasswordField.SetDisabled(true)
+	}
+	if t.authHeaderNameField != nil {
+		t.authHeaderNameField.SetDisabled(true)
+	}
+	if t.authHeaderValueField != nil {
+		t.authHeaderValueField.SetDisabled(true)
+	}
+
+	switch t.authMode {
+	case authModeBearer:
+		if t.authTokenField != nil {
+			t.authTokenField.SetDisabled(false)
+			t.authFieldsContainer.AddItem(t.authTokenField, 0, 1, true)
+		}
+	case authModeBasic:
+		if t.authUsernameField != nil {
+			t.authUsernameField.SetDisabled(false)
+			t.authFieldsContainer.AddItem(t.authUsernameField, 0, 1, true)
+		}
+		if t.authPasswordField != nil {
+			t.authPasswordField.SetDisabled(false)
+			t.authFieldsContainer.AddItem(t.authPasswordField, 0, 1, false)
+		}
+	case authModeHeader:
+		if t.authHeaderNameField != nil {
+			t.authHeaderNameField.SetDisabled(false)
+			t.authFieldsContainer.AddItem(t.authHeaderNameField, 0, 1, true)
+		}
+		if t.authHeaderValueField != nil {
+			t.authHeaderValueField.SetDisabled(false)
+			t.authFieldsContainer.AddItem(t.authHeaderValueField, 0, 1, false)
+		}
+	default:
+		info := tview.NewTextView().
+			SetDynamicColors(true).
+			SetText("[gray]Requests will be sent without authentication.")
+		t.authFieldsContainer.AddItem(info, 0, 1, false)
+	}
 }
 
 func (t *TUI) setupCollectionsPage() {
@@ -190,6 +309,11 @@ func (t *TUI) runBasicSearch() {
 		return
 	}
 
+	returnPage := t.searchReturnPage
+	if returnPage == "" {
+		returnPage = "collections"
+	}
+
 	ids := t.selectedSearchCollectionIDs()
 	params := client.SearchParams{Collections: ids}
 	metadata := map[string]string{}
@@ -199,8 +323,13 @@ func (t *TUI) runBasicSearch() {
 
 	if t.searchDatetime != nil {
 		if datetime := strings.TrimSpace(t.searchDatetime.GetText()); datetime != "" {
-			params.Datetime = datetime
-			metadata["datetime"] = datetime
+			normalized, err := normalizeDatetimeInput(datetime)
+			if err != nil {
+				t.showError(err.Error())
+				return
+			}
+			params.Datetime = normalized
+			metadata["datetime"] = normalized
 		}
 	}
 
@@ -248,6 +377,7 @@ func (t *TUI) runBasicSearch() {
 
 	ctx, cancel := context.WithTimeout(t.baseCtx, 300*time.Second)
 	seq := t.client.SearchSimple(ctx, params)
+	t.searchResultsReturnPage = returnPage
 	t.searchReturnPage = ""
 	t.startItemStream(label, metadata, seq, cancel)
 }
@@ -466,6 +596,36 @@ func (t *TUI) closeSearchForm() {
 	}
 }
 
+func (t *TUI) exitSearchResults() {
+	t.cancelItemIteration()
+
+	target := t.searchResultsReturnPage
+	if target == "" || target == "items" {
+		target = "collections"
+	}
+	t.searchResultsReturnPage = ""
+
+	switch target {
+	case "input":
+		t.pages.SwitchToPage("input")
+		if t.input != nil {
+			t.app.SetFocus(t.input)
+		}
+	case "collections":
+		t.pages.SwitchToPage("collections")
+		if t.collectionsList != nil {
+			t.app.SetFocus(t.collectionsList)
+		}
+	case "items":
+		t.pages.SwitchToPage("items")
+		if t.itemsList != nil {
+			t.app.SetFocus(t.itemsList)
+		}
+	default:
+		t.pages.SwitchToPage(target)
+	}
+}
+
 func (t *TUI) ensureSearchSelectionsValid() {
 	valid := make(map[string]struct{}, len(t.cols))
 	for _, col := range t.cols {
@@ -554,6 +714,87 @@ func parseBBoxInput(text string) ([]float64, string, error) {
 	}
 
 	return coords, strings.Join(normalized, ","), nil
+}
+
+func normalizeDatetimeInput(input string) (string, error) {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return "", nil
+	}
+	if input == ".." {
+		return "..", nil
+	}
+
+	if strings.Contains(input, "/") {
+		parts := strings.SplitN(input, "/", 2)
+		start, err := normalizeDatetimeComponent(parts[0], false)
+		if err != nil {
+			return "", err
+		}
+		end, err := normalizeDatetimeComponent(parts[1], true)
+		if err != nil {
+			return "", err
+		}
+		if start == "" {
+			start = ".."
+		}
+		if end == "" {
+			end = ".."
+		}
+		if start == ".." && end == ".." {
+			return "", fmt.Errorf("datetime range must include at least one bound")
+		}
+		return start + "/" + end, nil
+	}
+
+	return normalizeDatetimeComponent(input, false)
+}
+
+func normalizeDatetimeComponent(value string, isEnd bool) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", nil
+	}
+	if value == ".." {
+		return "..", nil
+	}
+
+	if _, err := time.Parse("2006-01-02", value); err == nil {
+		if isEnd {
+			return value + "T23:59:59Z", nil
+		}
+		return value + "T00:00:00Z", nil
+	}
+
+	if _, err := time.Parse(time.RFC3339Nano, value); err == nil {
+		return value, nil
+	}
+
+	if strings.Contains(value, "T") && !hasExplicitOffset(value) {
+		candidate := value + "Z"
+		if _, err := time.Parse(time.RFC3339Nano, candidate); err == nil {
+			return candidate, nil
+		}
+	}
+
+	return "", fmt.Errorf("invalid datetime value %q", value)
+}
+
+func hasExplicitOffset(value string) bool {
+	upper := strings.ToUpper(value)
+	if strings.HasSuffix(upper, "Z") {
+		return true
+	}
+	idx := strings.Index(value, "T")
+	if idx < 0 {
+		return false
+	}
+	for _, r := range value[idx+1:] {
+		if r == '+' || r == '-' {
+			return true
+		}
+	}
+	return false
 }
 
 func (t *TUI) toggleSearchCollection(index int) {
@@ -798,7 +1039,33 @@ func (t *TUI) setupItemDetailPage() {
 	t.pages.AddPage("itemDetail", itemDetailPage, true, false)
 }
 
-func (t *TUI) fetchCollections(url string) {
+func (t *TUI) ensureClient(url string, auth authConfig) (*client.Client, error) {
+	if t.client != nil && t.baseURL == url && t.currentAuth.equal(auth) {
+		return t.client, nil
+	}
+
+	mw, err := auth.middleware()
+	if err != nil {
+		return nil, err
+	}
+
+	var opts []client.ClientOption
+	if mw != nil {
+		opts = append(opts, client.WithMiddleware(mw))
+	}
+
+	cli, err := client.NewClient(url, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	t.client = cli
+	t.baseURL = url
+	t.currentAuth = auth
+	return cli, nil
+}
+
+func (t *TUI) fetchCollections(url string, auth authConfig) {
 	t.app.QueueUpdateDraw(func() {
 		t.collectionsList.Clear()
 		t.collectionsList.AddItem("Loading collections...", "", 0, nil)
@@ -807,12 +1074,11 @@ func (t *TUI) fetchCollections(url string) {
 	})
 
 	go func() {
-		cli, err := client.NewClient(url)
+		cli, err := t.ensureClient(url, auth)
 		if err != nil {
 			t.showError(err.Error())
 			return
 		}
-		t.client = cli
 
 		collectionsChan := make(chan []*stac.Collection, 1)
 		errorChan := make(chan error, 1)
@@ -823,7 +1089,7 @@ func (t *TUI) fetchCollections(url string) {
 			defer cancel()
 
 			var fetchErr error
-			t.client.GetCollections(ctx)(func(col *stac.Collection, err error) bool {
+			cli.GetCollections(ctx)(func(col *stac.Collection, err error) bool {
 				if err != nil {
 					fetchErr = err
 					return false
@@ -867,6 +1133,7 @@ func (t *TUI) fetchItems(collectionID string) {
 
 	t.activeResultLabel = label
 	t.lastSearchMetadata = metadata
+	t.searchResultsReturnPage = "collections"
 
 	t.app.QueueUpdateDraw(func() {
 		t.itemsList.Clear()

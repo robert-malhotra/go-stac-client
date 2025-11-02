@@ -14,6 +14,13 @@ type TUI struct {
 	app                   *tview.Application
 	pages                 *tview.Pages
 	input                 *tview.InputField
+	authTypeDropDown      *tview.DropDown
+	authTokenField        *tview.InputField
+	authUsernameField     *tview.InputField
+	authPasswordField     *tview.InputField
+	authHeaderNameField   *tview.InputField
+	authHeaderValueField  *tview.InputField
+	authFieldsContainer   *tview.Flex
 	searchForm            *tview.Form
 	searchSummary         *tview.InputField
 	searchDatetime        *tview.InputField
@@ -34,9 +41,10 @@ type TUI struct {
 	itemDetailPanes []tview.Primitive
 	itemDetailFocus int
 
-	client *client.Client
-	cols   []*stac.Collection
-	items  []*stac.Item
+	client  *client.Client
+	baseURL string
+	cols    []*stac.Collection
+	items   []*stac.Item
 
 	activeResultLabel         string
 	lastSearchMetadata        map[string]string
@@ -50,6 +58,7 @@ type TUI struct {
 	stacItemsIterator       func() (*stac.Item, error, bool)
 	stacItemsIteratorStop   func()
 	stacItemsIteratorCancel context.CancelFunc
+	searchResultsReturnPage string
 
 	// Paging state
 	pageSize       int
@@ -62,10 +71,14 @@ type TUI struct {
 	baseCancel context.CancelFunc
 	stopOnce   sync.Once
 
+	authMode authMode
+
 	downloadMu     sync.Mutex
 	activeDownload *downloadSession
 
 	jsonViewer *jsonViewer
+
+	currentAuth authConfig
 }
 
 func NewTUI(ctx context.Context) *TUI {
@@ -132,4 +145,9 @@ func (t *TUI) cancelItemIteration() {
 		t.stacItemsIteratorStop()
 		t.stacItemsIteratorStop = nil
 	}
+	t.stacItemsIterator = nil
+
+	t.itemLoadingMutex.Lock()
+	t.isLoadingItems = false
+	t.itemLoadingMutex.Unlock()
 }

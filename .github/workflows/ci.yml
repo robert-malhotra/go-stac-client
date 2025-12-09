@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Check out your repository so that the workflow has access to the code.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Set up the specified version of Go.
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      
+      # Download Go module dependencies.
+      - name: Download Dependencies
+        run: go mod download
+
+      # Run tests for all packages.
+      - name: Run Tests
+        run: go test -v ./...

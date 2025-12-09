@@ -112,6 +112,19 @@ func (c *Client) SearchSimple(ctx context.Context, params SearchParams) iter.Seq
 
 // SearchCQL2 performs a POST-based STAC search using the provided SearchParams as JSON payload.
 func (c *Client) SearchCQL2(ctx context.Context, params SearchParams) iter.Seq2[*stac.Item, error] {
+	return c.SearchWithDecoder(ctx, params, DefaultItemDecoder())
+}
+
+// SearchWithDecoder performs a POST-based search with a custom page decoder.
+// This is useful for APIs that return non-standard response formats (e.g., ICEYE's cursor-based pagination).
+//
+// Example for ICEYE:
+//
+//	decoder := client.CursorItemDecoder("data", "cursor", "/catalog/v2/items?cursor=%s")
+//	for item, err := range cli.SearchWithDecoder(ctx, params, decoder) {
+//	    // ...
+//	}
+func (c *Client) SearchWithDecoder(ctx context.Context, params SearchParams, decoder PageDecoder[stac.Item]) iter.Seq2[*stac.Item, error] {
 	// Marshal the search parameters into JSON
 	bodyBytes, err := json.Marshal(params)
 	if err != nil {
@@ -154,28 +167,32 @@ func (c *Client) SearchCQL2(ctx context.Context, params SearchParams) iter.Seq2[
 				return
 			}
 
-			var page struct {
-				Features []*stac.Item `json:"features"`
-				Links    []*stac.Link `json:"links"`
-			}
-			err = json.NewDecoder(resp.Body).Decode(&page)
+			page, err := decoder(resp.Body)
 			resp.Body.Close()
 			if err != nil {
 				yield(nil, fmt.Errorf("error decoding response from %s: %w", current, err))
 				return
 			}
 
-			for _, it := range page.Features {
+			for _, it := range page.Items {
 				if !yield(it, nil) {
 					return
 				}
 			}
 
-			nextURL, err := c.nextHandler(page.Links)
-			if err != nil {
-				yield(nil, fmt.Errorf("error determining next page from %s: %w", current, err))
-				return
+			// Determine next page URL
+			// Priority: NextURL > Links (via nextHandler)
+			var nextURL *url.URL
+			if page.NextURL != nil {
+				nextURL = page.NextURL
+			} else if len(page.Links) > 0 {
+				nextURL, err = c.nextHandler(page.Links)
+				if err != nil {
+					yield(nil, fmt.Errorf("error determining next page from %s: %w", current, err))
+					return
+				}
 			}
+
 			if nextURL == nil {
 				return
 			}

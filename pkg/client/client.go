@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	stac "github.com/planetlabs/go-stac"
+	"github.com/robert-malhotra/go-stac-client/pkg/stac"
 )
 
 // Middleware manipulates an outgoing *http.Request before it is executed.
-type Middleware func(*http.Request) error
+type Middleware func(context.Context, *http.Request) error
 
 // NextHandler determines the next-page URL from a list of STAC links.
 // Return nil if there’s no next page, or an error if parsing fails.
@@ -197,7 +197,7 @@ func (c *Client) doRequest(ctx context.Context, method, rawURL string, body io.R
 
 	// Apply all registered middleware in order.
 	for _, mw := range c.middleware {
-		if err := mw(req); err != nil {
+		if err := mw(ctx, req); err != nil {
 			return nil, fmt.Errorf("error applying middleware for %s: %w", rawURL, err)
 		}
 	}

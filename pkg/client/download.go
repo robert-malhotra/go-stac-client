@@ -1,4 +1,4 @@
-package downloader
+package client
 
 import (
 	"context"
@@ -14,21 +14,37 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
+// ProgressFunc reports cumulative bytes downloaded and the expected total.
 type ProgressFunc func(downloaded, total int64)
 
-func Download(ctx context.Context, assetURL string, destPath string) error {
-	return DownloadWithProgress(ctx, assetURL, destPath, nil)
+// DownloadAsset retrieves the asset at assetURL and writes it to destPath.
+func (c *Client) DownloadAsset(ctx context.Context, assetURL, destPath string) error {
+	return c.DownloadAssetWithProgress(ctx, assetURL, destPath, nil)
 }
 
-func DownloadWithProgress(ctx context.Context, assetURL string, destPath string, progress ProgressFunc) error {
+// DownloadAssetWithProgress downloads an asset while reporting progress.
+func (c *Client) DownloadAssetWithProgress(
+	ctx context.Context,
+	assetURL string,
+	destPath string,
+	progress ProgressFunc,
+) error {
+	if c == nil {
+		return fmt.Errorf("client is nil")
+	}
+
 	u, err := url.Parse(assetURL)
 	if err != nil {
 		return fmt.Errorf("failed to parse asset URL: %w", err)
 	}
 
+	if u.Scheme == "" {
+		u = c.baseURL.ResolveReference(u)
+	}
+
 	switch u.Scheme {
 	case "http", "https":
-		return downloadHTTP(ctx, assetURL, destPath, progress)
+		return c.downloadHTTP(ctx, u.String(), destPath, progress)
 	case "s3":
 		return downloadS3(ctx, u, destPath, progress)
 	default:
@@ -36,13 +52,8 @@ func DownloadWithProgress(ctx context.Context, assetURL string, destPath string,
 	}
 }
 
-func downloadHTTP(ctx context.Context, assetURL string, destPath string, progress ProgressFunc) (err error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, assetURL, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create HTTP request: %w", err)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
+func (c *Client) downloadHTTP(ctx context.Context, assetURL string, destPath string, progress ProgressFunc) (err error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, assetURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to download asset: %w", err)
 	}
@@ -107,11 +118,16 @@ func downloadS3(ctx context.Context, u *url.URL, destPath string, progress Progr
 		}
 	}()
 
-	if progress != nil {
-		progress(0, *result.ContentLength)
+	var total int64
+	if result.ContentLength != nil {
+		total = *result.ContentLength
 	}
 
-	_, err = copyWithProgress(ctx, out, result.Body, *result.ContentLength, progress)
+	if progress != nil {
+		progress(0, total)
+	}
+
+	_, err = copyWithProgress(ctx, out, result.Body, total, progress)
 	if err != nil {
 		return fmt.Errorf("failed to write asset to file: %w", err)
 	}

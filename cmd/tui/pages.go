@@ -9,10 +9,27 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
-	stac "github.com/planetlabs/go-stac"
 	"github.com/rivo/tview"
 	"github.com/robert-malhotra/go-stac-client/cmd/tui/formatting"
 	"github.com/robert-malhotra/go-stac-client/pkg/client"
+	"github.com/robert-malhotra/go-stac-client/pkg/stac"
+)
+
+// Page IDs used for navigation
+const (
+	pageInput       = "input"
+	pageCollections = "collections"
+	pageItems       = "items"
+	pageItemDetail  = "itemDetail"
+	pageSearch      = "search"
+	pageDownload    = "download"
+	pageError       = "error"
+	pageInfo        = "info"
+)
+
+const (
+	searchHelpControls = "[yellow]↑/↓[white] navigate  [yellow]Enter/Space[white] toggle selection  [yellow]Tab[white] switch focus  [yellow]Esc[white] cancel  [yellow]Ctrl+C[white] quit"
+	itemsHelpControls  = "[yellow]↑/↓[white] select  [yellow]Enter[white] view detail  [yellow]s[white] search (↑/↓ move, Space toggle)  [yellow]j[white] raw JSON  [yellow]Esc[white] back  [yellow]Ctrl+C[white] quit"
 )
 
 func (t *TUI) setupPages() {
@@ -22,12 +39,6 @@ func (t *TUI) setupPages() {
 	t.setupItemsPage()
 	t.setupItemDetailPage()
 }
-
-const (
-	searchPageID       = "search"
-	searchHelpControls = "[yellow]↑/↓[white] navigate  [yellow]Enter/Space[white] toggle selection  [yellow]Tab[white] switch focus  [yellow]Esc[white] cancel  [yellow]Ctrl+C[white] quit"
-	itemsHelpControls  = "[yellow]↑/↓[white] select  [yellow]Enter[white] view detail  [yellow]s[white] search (↑/↓ move, Space toggle)  [yellow]j[white] raw JSON  [yellow]Esc[white] back  [yellow]Ctrl+C[white] quit"
-)
 
 func (t *TUI) setupInputPage() {
 	t.input = tview.NewInputField().
@@ -107,7 +118,7 @@ func (t *TUI) setupInputPage() {
 		AddItem(inputForm, 0, 1, true).
 		AddItem(inputHelp, 3, 0, false)
 
-	t.pages.AddPage("input", inputPage, true, true)
+	t.pages.AddPage(pageInput, inputPage, true, true)
 }
 
 func (t *TUI) updateAuthFieldVisibility() {
@@ -193,7 +204,7 @@ func (t *TUI) setupCollectionsPage() {
 		}
 	})
 
-	t.pages.AddPage("collections", collectionsPage, true, false)
+	t.pages.AddPage(pageCollections, collectionsPage, true, false)
 }
 
 func (t *TUI) setupSearchFormPage() {
@@ -300,7 +311,7 @@ func (t *TUI) setupSearchFormPage() {
 		AddItem(formLayout, 0, 1, true).
 		AddItem(help, 3, 0, false)
 
-	t.pages.AddPage(searchPageID, searchPage, true, false)
+	t.pages.AddPage(pageSearch, searchPage, true, false)
 }
 
 func (t *TUI) runBasicSearch() {
@@ -311,7 +322,7 @@ func (t *TUI) runBasicSearch() {
 
 	returnPage := t.searchReturnPage
 	if returnPage == "" {
-		returnPage = "collections"
+		returnPage = pageCollections
 	}
 
 	ids := t.selectedSearchCollectionIDs()
@@ -365,8 +376,8 @@ func (t *TUI) runBasicSearch() {
 	label := fmt.Sprintf("Search – %s", summary)
 
 	t.app.QueueUpdateDraw(func() {
-		t.pages.HidePage(searchPageID)
-		t.pages.SwitchToPage("items")
+		t.pages.HidePage(pageSearch)
+		t.pages.SwitchToPage(pageItems)
 		t.itemsList.Clear()
 		t.itemSummary.Clear()
 		t.itemsList.AddItem("Loading items…", "", 0, nil)
@@ -406,8 +417,8 @@ func (t *TUI) openBasicSearchForm() {
 		t.searchCollectionsList.SetCurrentItem(0)
 	}
 
-	t.pages.ShowPage(searchPageID)
-	t.pages.SwitchToPage(searchPageID)
+	t.pages.ShowPage(pageSearch)
+	t.pages.SwitchToPage(pageSearch)
 	t.app.SetFocus(t.searchCollectionsList)
 }
 
@@ -580,18 +591,18 @@ func (t *TUI) searchFormItemIndex(target tview.FormItem) int {
 func (t *TUI) closeSearchForm() {
 	returnPage := t.searchReturnPage
 	if returnPage == "" {
-		returnPage = "collections"
+		returnPage = pageCollections
 	}
 	t.searchReturnPage = ""
 
 	switch returnPage {
-	case "items":
-		t.pages.SwitchToPage("items")
+	case pageItems:
+		t.pages.SwitchToPage(pageItems)
 		t.app.SetFocus(t.itemsList)
-	case "collections":
+	case pageCollections:
 		fallthrough
 	default:
-		t.pages.SwitchToPage("collections")
+		t.pages.SwitchToPage(pageCollections)
 		t.app.SetFocus(t.collectionsList)
 	}
 }
@@ -600,24 +611,24 @@ func (t *TUI) exitSearchResults() {
 	t.cancelItemIteration()
 
 	target := t.searchResultsReturnPage
-	if target == "" || target == "items" {
-		target = "collections"
+	if target == "" || target == pageItems {
+		target = pageCollections
 	}
 	t.searchResultsReturnPage = ""
 
 	switch target {
-	case "input":
-		t.pages.SwitchToPage("input")
+	case pageInput:
+		t.pages.SwitchToPage(pageInput)
 		if t.input != nil {
 			t.app.SetFocus(t.input)
 		}
-	case "collections":
-		t.pages.SwitchToPage("collections")
+	case pageCollections:
+		t.pages.SwitchToPage(pageCollections)
 		if t.collectionsList != nil {
 			t.app.SetFocus(t.collectionsList)
 		}
-	case "items":
-		t.pages.SwitchToPage("items")
+	case pageItems:
+		t.pages.SwitchToPage(pageItems)
 		if t.itemsList != nil {
 			t.app.SetFocus(t.itemsList)
 		}
@@ -979,7 +990,7 @@ func (t *TUI) setupItemsPage() {
 		}
 	})
 
-	t.pages.AddPage("items", itemsPage, true, false)
+	t.pages.AddPage(pageItems, itemsPage, true, false)
 }
 
 func (t *TUI) itemsListTitle(loading bool) string {
@@ -1036,7 +1047,7 @@ func (t *TUI) setupItemDetailPage() {
 		AddItem(t.itemDetail, 0, 1, true).
 		AddItem(itemDetailHelp, 3, 0, false)
 
-	t.pages.AddPage("itemDetail", itemDetailPage, true, false)
+	t.pages.AddPage(pageItemDetail, itemDetailPage, true, false)
 }
 
 func (t *TUI) ensureClient(url string, auth authConfig) (*client.Client, error) {
@@ -1069,7 +1080,7 @@ func (t *TUI) fetchCollections(url string, auth authConfig) {
 	t.app.QueueUpdateDraw(func() {
 		t.collectionsList.Clear()
 		t.collectionsList.AddItem("Loading collections...", "", 0, nil)
-		t.pages.SwitchToPage("collections")
+		t.pages.SwitchToPage(pageCollections)
 		t.app.SetFocus(t.collectionsList)
 	})
 
@@ -1133,7 +1144,7 @@ func (t *TUI) fetchItems(collectionID string) {
 
 	t.activeResultLabel = label
 	t.lastSearchMetadata = metadata
-	t.searchResultsReturnPage = "collections"
+	t.searchResultsReturnPage = pageCollections
 
 	t.app.QueueUpdateDraw(func() {
 		t.itemsList.Clear()
@@ -1141,7 +1152,7 @@ func (t *TUI) fetchItems(collectionID string) {
 		t.itemsList.AddItem("Loading items…", "", 0, nil)
 		t.itemsList.SetTitle(t.itemsListTitle(true))
 		t.updateItemsHelp()
-		t.pages.SwitchToPage("items")
+		t.pages.SwitchToPage(pageItems)
 		t.app.SetFocus(t.itemsList)
 	})
 
@@ -1278,30 +1289,26 @@ func (t *TUI) loadNextPage() {
 	}()
 }
 
-func (t *TUI) showInfo(message string) {
+// showModal displays a modal dialog with the given page ID and message.
+// The modal is automatically removed when dismissed.
+func (t *TUI) showModal(pageID, message string) {
 	t.app.QueueUpdateDraw(func() {
 		modal := tview.NewModal().
 			SetText(message).
 			AddButtons([]string{"OK"}).
 			SetDoneFunc(func(buttonIndex int, buttonLabel string) {
-				t.pages.HidePage("info")
+				t.pages.HidePage(pageID)
 			})
-		t.pages.RemovePage("info")
-		t.pages.AddPage("info", modal, false, true)
-		t.pages.ShowPage("info")
+		t.pages.RemovePage(pageID)
+		t.pages.AddPage(pageID, modal, false, true)
+		t.pages.ShowPage(pageID)
 	})
 }
 
+func (t *TUI) showInfo(message string) {
+	t.showModal(pageInfo, message)
+}
+
 func (t *TUI) showError(message string) {
-	t.app.QueueUpdateDraw(func() {
-		modal := tview.NewModal().
-			SetText(message).
-			AddButtons([]string{"OK"}).
-			SetDoneFunc(func(buttonIndex int, buttonLabel string) {
-				t.pages.HidePage("error")
-			})
-		t.pages.RemovePage("error")
-		t.pages.AddPage("error", modal, false, true)
-		t.pages.ShowPage("error")
-	})
+	t.showModal(pageError, message)
 }

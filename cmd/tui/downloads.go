@@ -7,10 +7,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	stac "github.com/planetlabs/go-stac"
+	"github.com/robert-malhotra/go-stac-client/pkg/stac"
 	"github.com/rivo/tview"
 	"github.com/robert-malhotra/go-stac-client/cmd/tui/formatting"
-	"github.com/robert-malhotra/go-stac-client/pkg/downloader"
 )
 
 type downloadSession struct {
@@ -47,6 +46,11 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 		return
 	}
 
+	if t.client == nil {
+		t.showError("No client available for download")
+		return
+	}
+
 	ctx, cancel := context.WithCancel(t.baseCtx)
 
 	modal := tview.NewModal().
@@ -62,8 +66,8 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 	closeDownloadPage := func() {
 		closePageOnce.Do(func() {
 			go t.app.QueueUpdateDraw(func() {
-				t.pages.HidePage("download")
-				t.pages.RemovePage("download")
+				t.pages.HidePage(pageDownload)
+				t.pages.RemovePage(pageDownload)
 				t.restoreFocusAfterModal()
 			})
 		})
@@ -84,8 +88,8 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 		session.cancel()
 	})
 
-	t.pages.RemovePage("download")
-	t.pages.AddPage("download", modal, true, true)
+	t.pages.RemovePage(pageDownload)
+	t.pages.AddPage(pageDownload, modal, true, true)
 	t.app.SetFocus(modal)
 
 	dest := formatting.GetOutputFilename(asset.Href)
@@ -102,7 +106,7 @@ func (t *TUI) downloadAsset(asset *stac.Asset) {
 		defer cancel()
 		defer t.clearActiveDownload(session)
 
-		err := downloader.DownloadWithProgress(ctx, asset.Href, dest, func(downloaded, total int64) {
+		err := t.client.DownloadAssetWithProgress(ctx, asset.Href, dest, func(downloaded, total int64) {
 			t.app.QueueUpdateDraw(func() { updateProgress(downloaded, total) })
 		})
 

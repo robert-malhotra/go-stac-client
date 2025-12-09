@@ -5,9 +5,9 @@ import (
 	"sync"
 
 	"github.com/gdamore/tcell/v2"
-	stac "github.com/planetlabs/go-stac"
 	"github.com/rivo/tview"
 	"github.com/robert-malhotra/go-stac-client/pkg/client"
+	"github.com/robert-malhotra/go-stac-client/pkg/stac"
 )
 
 type TUI struct {
@@ -81,14 +81,9 @@ type TUI struct {
 	currentAuth authConfig
 }
 
-func NewTUI(ctx context.Context) *TUI {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	baseCtx, baseCancel := context.WithCancel(ctx)
-	app := tview.NewApplication()
-
-	// Styles
+// configureStyles sets the tview global styles for the TUI.
+// Note: This modifies global state in tview.Styles.
+func configureStyles() {
 	tview.Styles.PrimitiveBackgroundColor = tcell.ColorBlack
 	tview.Styles.ContrastBackgroundColor = tcell.ColorDarkSlateGray
 	tview.Styles.MoreContrastBackgroundColor = tcell.ColorGreen
@@ -100,29 +95,40 @@ func NewTUI(ctx context.Context) *TUI {
 	tview.Styles.TertiaryTextColor = tcell.ColorGreen
 	tview.Styles.InverseTextColor = tcell.ColorBlue
 	tview.Styles.ContrastSecondaryTextColor = tcell.ColorNavy
+}
+
+// NewTUI creates a new TUI instance. The provided context controls the
+// lifetime of background operations; pass nil to use context.Background().
+func NewTUI(ctx context.Context) *TUI {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	baseCtx, baseCancel := context.WithCancel(ctx)
+
+	configureStyles()
 
 	tui := &TUI{
-		app:        app,
-		pages:      tview.NewPages(),
-		pageSize:   10,
-		baseCtx:    baseCtx,
-		baseCancel: baseCancel,
+		app:                       tview.NewApplication(),
+		pages:                     tview.NewPages(),
+		pageSize:                  10,
+		baseCtx:                   baseCtx,
+		baseCancel:                baseCancel,
+		searchSelectedCollections: make(map[string]bool),
 	}
 
 	tui.setupPages()
 	tui.jsonViewer = newJSONViewer(tui)
 
-	// Global key handling
 	tui.app.SetInputCapture(tui.onInputCapture)
 	tui.app.SetFocus(tui.input)
 
 	return tui
 }
 
-func (t *TUI) Run() {
-	if err := t.app.SetRoot(t.pages, true).Run(); err != nil {
-		panic(err)
-	}
+// Run starts the TUI event loop. It blocks until the application exits
+// and returns any error that occurred.
+func (t *TUI) Run() error {
+	return t.app.SetRoot(t.pages, true).Run()
 }
 
 func (t *TUI) Stop() {

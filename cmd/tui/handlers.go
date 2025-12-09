@@ -27,7 +27,7 @@ func (t *TUI) onInputCapture(event *tcell.EventKey) *tcell.EventKey {
 
 	currentPage, _ := t.pages.GetFrontPage()
 
-	if currentPage == "input" {
+	if currentPage == pageInput {
 		switch event.Key() {
 		case tcell.KeyTab:
 			if t.focusInputPageField(1) {
@@ -45,21 +45,21 @@ func (t *TUI) onInputCapture(event *tcell.EventKey) *tcell.EventKey {
 		switch r := event.Rune(); {
 		case r == 'j' || r == 'J':
 			switch currentPage {
-			case "collections":
+			case pageCollections:
 				index := t.collectionsList.GetCurrentItem()
 				if index >= 0 && index < len(t.cols) {
 					col := t.cols[index]
 					t.showJSON(fmt.Sprintf("Collection %s", col.Id), col)
 				}
 				return nil
-			case "items":
+			case pageItems:
 				index := t.itemsList.GetCurrentItem()
 				if index >= 0 && index < len(t.items) {
 					item := t.items[index]
 					t.showJSON(fmt.Sprintf("Item %s", item.Id), item)
 				}
 				return nil
-			case "itemDetail":
+			case pageItemDetail:
 				if t.currentItem != nil {
 					t.showJSON(fmt.Sprintf("Item %s", t.currentItem.Id), t.currentItem)
 				}
@@ -67,7 +67,7 @@ func (t *TUI) onInputCapture(event *tcell.EventKey) *tcell.EventKey {
 			}
 		case r == 's' || r == 'S':
 			switch currentPage {
-			case "collections", "items":
+			case pageCollections, pageItems:
 				t.openBasicSearchForm()
 				return nil
 			}
@@ -75,7 +75,7 @@ func (t *TUI) onInputCapture(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	// Item detail pane navigation
-	if currentPage == "itemDetail" {
+	if currentPage == pageItemDetail {
 		if event.Key() == tcell.KeyTab {
 			t.itemDetailFocus = (t.itemDetailFocus + 1) % len(t.itemDetailPanes)
 			t.app.SetFocus(t.itemDetailPanes[t.itemDetailFocus])
@@ -88,7 +88,7 @@ func (t *TUI) onInputCapture(event *tcell.EventKey) *tcell.EventKey {
 	}
 
 	// Collections page focus toggle
-	if currentPage == "collections" {
+	if currentPage == pageCollections {
 		switch event.Key() {
 		case tcell.KeyTab, tcell.KeyBacktab:
 			if t.app.GetFocus() == t.collectionsList {
@@ -100,7 +100,7 @@ func (t *TUI) onInputCapture(event *tcell.EventKey) *tcell.EventKey {
 		}
 	}
 
-	if currentPage == searchPageID {
+	if currentPage == pageSearch {
 		switch event.Key() {
 		case tcell.KeyTab:
 			if t.searchCollectionsList != nil && t.searchCollectionsList.HasFocus() {
@@ -135,26 +135,26 @@ func (t *TUI) onInputCapture(event *tcell.EventKey) *tcell.EventKey {
 		}
 
 		switch currentPage {
-		case "download":
+		case pageDownload:
 			t.cancelActiveDownload()
 			t.restoreFocusAfterModal()
 			return nil
-		case "error", "info":
+		case pageError, pageInfo:
 			t.pages.HidePage(currentPage)
 			t.restoreFocusAfterModal()
 			return nil
-		case "itemDetail":
-			t.pages.SwitchToPage("items")
+		case pageItemDetail:
+			t.pages.SwitchToPage(pageItems)
 			t.app.SetFocus(t.itemsList)
 			return nil
-		case "items":
+		case pageItems:
 			t.exitSearchResults()
 			return nil
-		case "collections":
-			t.pages.SwitchToPage("input")
+		case pageCollections:
+			t.pages.SwitchToPage(pageInput)
 			t.app.SetFocus(t.input)
 			return nil
-		case searchPageID:
+		case pageSearch:
 			t.closeSearchForm()
 			return nil
 		}
@@ -287,26 +287,26 @@ func (t *TUI) restoreFocusAfterModal() {
 	}
 
 	switch currentPage {
-	case "items":
+	case pageItems:
 		if t.itemsList != nil {
 			t.app.SetFocus(t.itemsList)
 		}
-	case "itemDetail":
+	case pageItemDetail:
 		if len(t.itemDetailPanes) > 0 {
 			if t.itemDetailFocus < 0 || t.itemDetailFocus >= len(t.itemDetailPanes) {
 				t.itemDetailFocus = 0
 			}
 			t.app.SetFocus(t.itemDetailPanes[t.itemDetailFocus])
 		}
-	case "collections":
+	case pageCollections:
 		if t.collectionsList != nil {
 			t.app.SetFocus(t.collectionsList)
 		}
-	case searchPageID:
+	case pageSearch:
 		if t.searchCollectionsList != nil {
 			t.app.SetFocus(t.searchCollectionsList)
 		}
-	case "input":
+	case pageInput:
 		if t.input != nil {
 			t.app.SetFocus(t.input)
 		}

@@ -3,9 +3,9 @@ package main
 import (
 	"sort"
 
-	stac "github.com/planetlabs/go-stac"
 	"github.com/rivo/tview"
 	"github.com/robert-malhotra/go-stac-client/cmd/tui/formatting"
+	"github.com/robert-malhotra/go-stac-client/pkg/stac"
 )
 
 type assetListEntry struct {
@@ -35,7 +35,7 @@ func (t *TUI) showItemDetail(item *stac.Item) {
 	t.itemDetailFocus = 0
 	t.app.SetFocus(t.itemDetailPanes[t.itemDetailFocus])
 
-	t.pages.SwitchToPage("itemDetail")
+	t.pages.SwitchToPage(pageItemDetail)
 }
 
 func (t *TUI) buildAssetsView(item *stac.Item) {

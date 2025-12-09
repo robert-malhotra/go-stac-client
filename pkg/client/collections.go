@@ -8,7 +8,7 @@ import (
 	"iter"
 	"net/http"
 
-	stac "github.com/planetlabs/go-stac"
+	"github.com/robert-malhotra/go-stac-client/pkg/stac"
 )
 
 // GetCollection fetches a single collection document by ID.

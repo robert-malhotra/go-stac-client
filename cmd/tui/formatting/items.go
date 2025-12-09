@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	stac "github.com/planetlabs/go-stac"
+	"github.com/robert-malhotra/go-stac-client/pkg/stac"
 )
 
 func FormatItemSummary(item *stac.Item) string {

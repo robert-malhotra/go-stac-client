@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	stac "github.com/planetlabs/go-stac"
+	"github.com/robert-malhotra/go-stac-client/pkg/stac"
 )
 
 func FormatCollectionDetails(col *stac.Collection) string {
@@ -39,17 +39,10 @@ func FormatCollectionDetails(col *stac.Collection) string {
 	}
 
 	if len(col.Extensions) > 0 {
-		uris := make([]string, 0, len(col.Extensions))
-		for _, ext := range col.Extensions {
-			if ext == nil {
-				continue
-			}
-			uris = append(uris, ext.URI())
-		}
-		if len(uris) > 0 {
-			sort.Strings(uris)
-			writeField("Extensions", strings.Join(uris, ", "))
-		}
+		uris := make([]string, len(col.Extensions))
+		copy(uris, col.Extensions)
+		sort.Strings(uris)
+		writeField("Extensions", strings.Join(uris, ", "))
 	}
 
 	if len(col.Providers) > 0 {

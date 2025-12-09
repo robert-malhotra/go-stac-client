@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	stac "github.com/planetlabs/go-stac"
+	"github.com/robert-malhotra/go-stac-client/pkg/stac"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

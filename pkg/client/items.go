@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"net/url"
 
-	stac "github.com/planetlabs/go-stac"
+	"github.com/robert-malhotra/go-stac-client/pkg/stac"
 )
 
 // GetItem fetches an individual item from a collection.

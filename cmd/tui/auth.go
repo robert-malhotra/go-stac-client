@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -60,7 +61,7 @@ func (cfg authConfig) middleware() (client.Middleware, error) {
 		if token == "" {
 			return nil, fmt.Errorf("Bearer token is required")
 		}
-		return func(r *http.Request) error {
+		return func(_ context.Context, r *http.Request) error {
 			r.Header.Set("Authorization", "Bearer "+token)
 			return nil
 		}, nil
@@ -70,7 +71,7 @@ func (cfg authConfig) middleware() (client.Middleware, error) {
 			return nil, fmt.Errorf("Username is required for basic authentication")
 		}
 		password := cfg.password
-		return func(r *http.Request) error {
+		return func(_ context.Context, r *http.Request) error {
 			r.SetBasicAuth(username, password)
 			return nil
 		}, nil
@@ -84,7 +85,7 @@ func (cfg authConfig) middleware() (client.Middleware, error) {
 			return nil, fmt.Errorf("Header value is required")
 		}
 		canonical := http.CanonicalHeaderKey(name)
-		return func(r *http.Request) error {
+		return func(_ context.Context, r *http.Request) error {
 			r.Header.Set(canonical, value)
 			return nil
 		}, nil

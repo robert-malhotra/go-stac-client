@@ -11,7 +11,7 @@ import (
 	"net/url"
 	"strings"
 
-	stac "github.com/planetlabs/go-stac"
+	"github.com/robert-malhotra/go-stac-client/pkg/stac"
 )
 
 // -----------------------------------------------------------------------------

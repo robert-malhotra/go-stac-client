@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"iter"
 	"net/http"
 	"net/url"
@@ -44,6 +43,12 @@ func (c *Client) GetItem(ctx context.Context, collectionID, itemID string) (*sta
 }
 
 func (c *Client) GetItems(ctx context.Context, collectionID string) iter.Seq2[*stac.Item, error] {
+	return c.GetItemsWithDecoder(ctx, collectionID, DefaultItemDecoder())
+}
+
+// GetItemsWithDecoder fetches items from a collection using a custom page decoder.
+// This is useful for APIs that return non-standard response formats.
+func (c *Client) GetItemsWithDecoder(ctx context.Context, collectionID string, decoder PageDecoder[stac.Item]) iter.Seq2[*stac.Item, error] {
 	if collectionID == "" {
 		return func(y func(*stac.Item, error) bool) {
 			y(nil, fmt.Errorf("collection ID cannot be empty"))
@@ -52,13 +57,11 @@ func (c *Client) GetItems(ctx context.Context, collectionID string) iter.Seq2[*s
 
 	start := fmt.Sprintf("collections/%s/items", url.PathEscape(collectionID))
 
-	return iteratePages[stac.Item](ctx, c, start,
-		func(r io.Reader) ([]*stac.Item, []*stac.Link, error) {
-			var page struct {
-				Features []*stac.Item `json:"features"` // STAC 1.0 Items list
-				Links    []*stac.Link `json:"links"`
-			}
-			err := json.NewDecoder(r).Decode(&page)
-			return page.Features, page.Links, err
-		})
+	return iteratePagesWithDecoder[stac.Item](ctx, c, start, decoder)
+}
+
+// GetItemsFromPath fetches items from an arbitrary path using a custom page decoder.
+// This is useful for APIs with non-standard endpoint paths (e.g., ICEYE's /catalog/v2/items).
+func (c *Client) GetItemsFromPath(ctx context.Context, path string, decoder PageDecoder[stac.Item]) iter.Seq2[*stac.Item, error] {
+	return iteratePagesWithDecoder[stac.Item](ctx, c, path, decoder)
 }

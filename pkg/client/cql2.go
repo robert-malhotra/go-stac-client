@@ -3,14 +3,21 @@
 // This implementation wraps the github.com/planetlabs/go-ogc/filter package
 // to provide a convenient, fluent API for building CQL2-JSON filter expressions.
 //
-// Example usage:
+// The package provides two API styles:
+//
+// 1. Ergonomic API (recommended) - uses generics to infer types:
 //
 //	f := client.NewFilterBuilder().
-//	    And(client.Lt(client.Property("eo:cloud_cover"), client.Number(10))).
-//	    And(client.SIntersects(
-//	        client.Property("geometry"),
-//	        client.BBox(-122.5, 37.5, -122.0, 38.0),
-//	    )).
+//	    Where(client.Lt("eo:cloud_cover", 10.0)).
+//	    And(client.Eq("platform", "sentinel-2a")).
+//	    And(client.SIntersects(client.BBox(-122.5, 37.5, -122.0, 38.0))).
+//	    Build()
+//
+// 2. Explicit API - for advanced use cases requiring full control:
+//
+//	f := client.NewFilterBuilder().
+//	    Where(client.LtExpr(client.Property("eo:cloud_cover"), client.Number(10))).
+//	    And(client.EqExpr(client.Property("platform"), client.String("sentinel-2a"))).
 //	    Build()
 package client
 
@@ -73,11 +80,184 @@ func Boolean(b bool) *filter.Boolean {
 }
 
 // -----------------------------------------------------------------------------
-// Comparison Operators
+// Generic Type Constraints and Conversion
 // -----------------------------------------------------------------------------
 
-// Eq creates an equality comparison (=).
-func Eq(left, right filter.ScalarExpression) *filter.Comparison {
+// Scalar is a type constraint for values that can be compared in CQL2 filters.
+// Supported types: string, numeric types (int, float64, etc.), and bool.
+type Scalar interface {
+	~string | ~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 |
+		~float32 | ~float64 | ~bool
+}
+
+// toScalarExpr converts a Go value to a filter.ScalarExpression.
+func toScalarExpr[T Scalar](v T) filter.ScalarExpression {
+	switch val := any(v).(type) {
+	case string:
+		return &filter.String{Value: val}
+	case bool:
+		return &filter.Boolean{Value: val}
+	case int:
+		return &filter.Number{Value: float64(val)}
+	case int8:
+		return &filter.Number{Value: float64(val)}
+	case int16:
+		return &filter.Number{Value: float64(val)}
+	case int32:
+		return &filter.Number{Value: float64(val)}
+	case int64:
+		return &filter.Number{Value: float64(val)}
+	case uint:
+		return &filter.Number{Value: float64(val)}
+	case uint8:
+		return &filter.Number{Value: float64(val)}
+	case uint16:
+		return &filter.Number{Value: float64(val)}
+	case uint32:
+		return &filter.Number{Value: float64(val)}
+	case uint64:
+		return &filter.Number{Value: float64(val)}
+	case float32:
+		return &filter.Number{Value: float64(val)}
+	case float64:
+		return &filter.Number{Value: val}
+	default:
+		// This shouldn't happen due to type constraint, but fallback to string
+		return &filter.String{Value: ""}
+	}
+}
+
+// toNumericExpr converts a numeric Go value to a filter.NumericExpression.
+func toNumericExpr[T ~int | ~int8 | ~int16 | ~int32 | ~int64 |
+	~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 |
+	~float32 | ~float64](v T) filter.NumericExpression {
+	return &filter.Number{Value: float64(v)}
+}
+
+// -----------------------------------------------------------------------------
+// Comparison Operators - Ergonomic API (type-inferred)
+// -----------------------------------------------------------------------------
+
+// Eq creates an equality comparison (property = value).
+// The property name is the first argument, and the value type is inferred.
+//
+// Example:
+//
+//	Eq("status", "active")      // string comparison
+//	Eq("count", 42)             // numeric comparison
+//	Eq("enabled", true)         // boolean comparison
+func Eq[T Scalar](property string, value T) *filter.Comparison {
+	return &filter.Comparison{
+		Name:  filter.Equals,
+		Left:  Property(property),
+		Right: toScalarExpr(value),
+	}
+}
+
+// Neq creates an inequality comparison (property <> value).
+func Neq[T Scalar](property string, value T) *filter.Comparison {
+	return &filter.Comparison{
+		Name:  filter.NotEquals,
+		Left:  Property(property),
+		Right: toScalarExpr(value),
+	}
+}
+
+// Lt creates a less-than comparison (property < value).
+func Lt[T Scalar](property string, value T) *filter.Comparison {
+	return &filter.Comparison{
+		Name:  filter.LessThan,
+		Left:  Property(property),
+		Right: toScalarExpr(value),
+	}
+}
+
+// Lte creates a less-than-or-equal comparison (property <= value).
+func Lte[T Scalar](property string, value T) *filter.Comparison {
+	return &filter.Comparison{
+		Name:  filter.LessThanOrEquals,
+		Left:  Property(property),
+		Right: toScalarExpr(value),
+	}
+}
+
+// Gt creates a greater-than comparison (property > value).
+func Gt[T Scalar](property string, value T) *filter.Comparison {
+	return &filter.Comparison{
+		Name:  filter.GreaterThan,
+		Left:  Property(property),
+		Right: toScalarExpr(value),
+	}
+}
+
+// Gte creates a greater-than-or-equal comparison (property >= value).
+func Gte[T Scalar](property string, value T) *filter.Comparison {
+	return &filter.Comparison{
+		Name:  filter.GreaterThanOrEquals,
+		Left:  Property(property),
+		Right: toScalarExpr(value),
+	}
+}
+
+// Like creates a pattern matching expression (property LIKE pattern).
+// Use % for multi-character wildcard and _ for single character wildcard.
+//
+// Example:
+//
+//	Like("id", "S2A_MSIL2A_%")
+func Like(property string, pattern string) *filter.Like {
+	return &filter.Like{
+		Value:   Property(property),
+		Pattern: String(pattern),
+	}
+}
+
+// Between creates a range comparison (property BETWEEN low AND high).
+//
+// Example:
+//
+//	Between("eo:cloud_cover", 0.0, 20.0)
+func Between[T ~int | ~int8 | ~int16 | ~int32 | ~int64 |
+	~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 |
+	~float32 | ~float64](property string, low, high T) *filter.Between {
+	return &filter.Between{
+		Value: Property(property),
+		Low:   toNumericExpr(low),
+		High:  toNumericExpr(high),
+	}
+}
+
+// In creates a membership test (property IN (values...)).
+//
+// Example:
+//
+//	In("collection", "sentinel-1", "sentinel-2", "landsat-8")
+//	In("quality", 1, 2, 3)
+func In[T Scalar](property string, values ...T) *filter.In {
+	list := make([]filter.ScalarExpression, len(values))
+	for i, v := range values {
+		list[i] = toScalarExpr(v)
+	}
+	return &filter.In{
+		Item: Property(property),
+		List: list,
+	}
+}
+
+// IsNull creates a null check (property IS NULL).
+func IsNull(property string) *filter.IsNull {
+	return &filter.IsNull{
+		Value: Property(property),
+	}
+}
+
+// -----------------------------------------------------------------------------
+// Comparison Operators - Explicit API (for advanced use cases)
+// -----------------------------------------------------------------------------
+
+// EqExpr creates an equality comparison with explicit expressions.
+func EqExpr(left, right filter.ScalarExpression) *filter.Comparison {
 	return &filter.Comparison{
 		Name:  filter.Equals,
 		Left:  left,
@@ -85,8 +265,8 @@ func Eq(left, right filter.ScalarExpression) *filter.Comparison {
 	}
 }
 
-// Neq creates an inequality comparison (<>).
-func Neq(left, right filter.ScalarExpression) *filter.Comparison {
+// NeqExpr creates an inequality comparison with explicit expressions.
+func NeqExpr(left, right filter.ScalarExpression) *filter.Comparison {
 	return &filter.Comparison{
 		Name:  filter.NotEquals,
 		Left:  left,
@@ -94,8 +274,8 @@ func Neq(left, right filter.ScalarExpression) *filter.Comparison {
 	}
 }
 
-// Lt creates a less-than comparison (<).
-func Lt(left, right filter.ScalarExpression) *filter.Comparison {
+// LtExpr creates a less-than comparison with explicit expressions.
+func LtExpr(left, right filter.ScalarExpression) *filter.Comparison {
 	return &filter.Comparison{
 		Name:  filter.LessThan,
 		Left:  left,
@@ -103,8 +283,8 @@ func Lt(left, right filter.ScalarExpression) *filter.Comparison {
 	}
 }
 
-// Lte creates a less-than-or-equal comparison (<=).
-func Lte(left, right filter.ScalarExpression) *filter.Comparison {
+// LteExpr creates a less-than-or-equal comparison with explicit expressions.
+func LteExpr(left, right filter.ScalarExpression) *filter.Comparison {
 	return &filter.Comparison{
 		Name:  filter.LessThanOrEquals,
 		Left:  left,
@@ -112,8 +292,8 @@ func Lte(left, right filter.ScalarExpression) *filter.Comparison {
 	}
 }
 
-// Gt creates a greater-than comparison (>).
-func Gt(left, right filter.ScalarExpression) *filter.Comparison {
+// GtExpr creates a greater-than comparison with explicit expressions.
+func GtExpr(left, right filter.ScalarExpression) *filter.Comparison {
 	return &filter.Comparison{
 		Name:  filter.GreaterThan,
 		Left:  left,
@@ -121,8 +301,8 @@ func Gt(left, right filter.ScalarExpression) *filter.Comparison {
 	}
 }
 
-// Gte creates a greater-than-or-equal comparison (>=).
-func Gte(left, right filter.ScalarExpression) *filter.Comparison {
+// GteExpr creates a greater-than-or-equal comparison with explicit expressions.
+func GteExpr(left, right filter.ScalarExpression) *filter.Comparison {
 	return &filter.Comparison{
 		Name:  filter.GreaterThanOrEquals,
 		Left:  left,
@@ -130,17 +310,16 @@ func Gte(left, right filter.ScalarExpression) *filter.Comparison {
 	}
 }
 
-// Like creates a pattern matching expression.
-// Use % for multi-character wildcard and _ for single character wildcard.
-func Like(value filter.CharacterExpression, pattern filter.PatternExpression) *filter.Like {
+// LikeExpr creates a pattern matching expression with explicit expressions.
+func LikeExpr(value filter.CharacterExpression, pattern filter.PatternExpression) *filter.Like {
 	return &filter.Like{
 		Value:   value,
 		Pattern: pattern,
 	}
 }
 
-// Between creates a range comparison (value BETWEEN low AND high).
-func Between(value, low, high filter.NumericExpression) *filter.Between {
+// BetweenExpr creates a range comparison with explicit expressions.
+func BetweenExpr(value, low, high filter.NumericExpression) *filter.Between {
 	return &filter.Between{
 		Value: value,
 		Low:   low,
@@ -148,16 +327,16 @@ func Between(value, low, high filter.NumericExpression) *filter.Between {
 	}
 }
 
-// In creates a membership test (value IN list).
-func In(item filter.ScalarExpression, list ...filter.ScalarExpression) *filter.In {
+// InExpr creates a membership test with explicit expressions.
+func InExpr(item filter.ScalarExpression, list ...filter.ScalarExpression) *filter.In {
 	return &filter.In{
 		Item: item,
 		List: list,
 	}
 }
 
-// IsNull creates a null check (value IS NULL).
-func IsNull(value filter.Expression) *filter.IsNull {
+// IsNullExpr creates a null check with an explicit expression.
+func IsNullExpr(value filter.Expression) *filter.IsNull {
 	return &filter.IsNull{
 		Value: value,
 	}

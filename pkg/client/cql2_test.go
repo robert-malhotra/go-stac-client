@@ -33,52 +33,144 @@ func TestPropertyExpression(t *testing.T) {
 	assert.Equal(t, "eo:cloud_cover", prop.Name)
 }
 
-func TestComparisonOperators(t *testing.T) {
-	t.Run("equals", func(t *testing.T) {
-		cmp := Eq(Property("status"), String("published"))
+func TestComparisonOperatorsErgonomic(t *testing.T) {
+	t.Run("equals with string", func(t *testing.T) {
+		cmp := Eq("status", "published")
 		assert.Equal(t, filter.Equals, cmp.Name)
+		prop, ok := cmp.Left.(*filter.Property)
+		require.True(t, ok)
+		assert.Equal(t, "status", prop.Name)
+		str, ok := cmp.Right.(*filter.String)
+		require.True(t, ok)
+		assert.Equal(t, "published", str.Value)
+	})
+
+	t.Run("equals with int", func(t *testing.T) {
+		cmp := Eq("count", 42)
+		assert.Equal(t, filter.Equals, cmp.Name)
+		num, ok := cmp.Right.(*filter.Number)
+		require.True(t, ok)
+		assert.Equal(t, 42.0, num.Value)
+	})
+
+	t.Run("equals with float64", func(t *testing.T) {
+		cmp := Eq("score", 98.5)
+		num, ok := cmp.Right.(*filter.Number)
+		require.True(t, ok)
+		assert.Equal(t, 98.5, num.Value)
+	})
+
+	t.Run("equals with bool", func(t *testing.T) {
+		cmp := Eq("enabled", true)
+		b, ok := cmp.Right.(*filter.Boolean)
+		require.True(t, ok)
+		assert.True(t, b.Value)
 	})
 
 	t.Run("not equals", func(t *testing.T) {
-		cmp := Neq(Property("status"), String("draft"))
+		cmp := Neq("status", "draft")
 		assert.Equal(t, filter.NotEquals, cmp.Name)
 	})
 
 	t.Run("less than", func(t *testing.T) {
-		cmp := Lt(Property("eo:cloud_cover"), Number(10.0))
+		cmp := Lt("eo:cloud_cover", 10.0)
 		assert.Equal(t, filter.LessThan, cmp.Name)
 	})
 
 	t.Run("less than or equal", func(t *testing.T) {
-		cmp := Lte(Property("count"), Number(100))
+		cmp := Lte("count", 100)
 		assert.Equal(t, filter.LessThanOrEquals, cmp.Name)
 	})
 
 	t.Run("greater than", func(t *testing.T) {
-		cmp := Gt(Property("elevation"), Number(1000.0))
+		cmp := Gt("elevation", 1000.0)
 		assert.Equal(t, filter.GreaterThan, cmp.Name)
 	})
 
 	t.Run("greater than or equal", func(t *testing.T) {
-		cmp := Gte(Property("quality"), Number(80))
+		cmp := Gte("quality", 80)
 		assert.Equal(t, filter.GreaterThanOrEquals, cmp.Name)
 	})
 
 	t.Run("between", func(t *testing.T) {
-		b := Between(Property("temp"), Number(-10.0), Number(30.0))
+		b := Between("temp", -10.0, 30.0)
+		assert.NotNil(t, b.Value)
+		assert.NotNil(t, b.Low)
+		assert.NotNil(t, b.High)
+	})
+
+	t.Run("in with strings", func(t *testing.T) {
+		in := In("collection", "a", "b", "c")
+		assert.NotNil(t, in.Item)
+		assert.Len(t, in.List, 3)
+	})
+
+	t.Run("in with ints", func(t *testing.T) {
+		in := In("quality", 1, 2, 3)
+		assert.Len(t, in.List, 3)
+		num, ok := in.List[0].(*filter.Number)
+		require.True(t, ok)
+		assert.Equal(t, 1.0, num.Value)
+	})
+
+	t.Run("isNull", func(t *testing.T) {
+		isN := IsNull("optional_field")
+		assert.NotNil(t, isN.Value)
+	})
+
+	t.Run("like", func(t *testing.T) {
+		l := Like("id", "S2A_%")
+		assert.NotNil(t, l.Value)
+		assert.NotNil(t, l.Pattern)
+	})
+}
+
+func TestComparisonOperatorsExplicit(t *testing.T) {
+	t.Run("equals", func(t *testing.T) {
+		cmp := EqExpr(Property("status"), String("published"))
+		assert.Equal(t, filter.Equals, cmp.Name)
+	})
+
+	t.Run("not equals", func(t *testing.T) {
+		cmp := NeqExpr(Property("status"), String("draft"))
+		assert.Equal(t, filter.NotEquals, cmp.Name)
+	})
+
+	t.Run("less than", func(t *testing.T) {
+		cmp := LtExpr(Property("eo:cloud_cover"), Number(10.0))
+		assert.Equal(t, filter.LessThan, cmp.Name)
+	})
+
+	t.Run("less than or equal", func(t *testing.T) {
+		cmp := LteExpr(Property("count"), Number(100))
+		assert.Equal(t, filter.LessThanOrEquals, cmp.Name)
+	})
+
+	t.Run("greater than", func(t *testing.T) {
+		cmp := GtExpr(Property("elevation"), Number(1000.0))
+		assert.Equal(t, filter.GreaterThan, cmp.Name)
+	})
+
+	t.Run("greater than or equal", func(t *testing.T) {
+		cmp := GteExpr(Property("quality"), Number(80))
+		assert.Equal(t, filter.GreaterThanOrEquals, cmp.Name)
+	})
+
+	t.Run("between", func(t *testing.T) {
+		b := BetweenExpr(Property("temp"), Number(-10.0), Number(30.0))
 		assert.NotNil(t, b.Value)
 		assert.NotNil(t, b.Low)
 		assert.NotNil(t, b.High)
 	})
 
 	t.Run("in", func(t *testing.T) {
-		in := In(Property("collection"), String("a"), String("b"), String("c"))
+		in := InExpr(Property("collection"), String("a"), String("b"), String("c"))
 		assert.NotNil(t, in.Item)
 		assert.Len(t, in.List, 3)
 	})
 
 	t.Run("isNull", func(t *testing.T) {
-		isN := IsNull(Property("optional_field"))
+		isN := IsNullExpr(Property("optional_field"))
 		assert.NotNil(t, isN.Value)
 	})
 }
@@ -86,23 +178,23 @@ func TestComparisonOperators(t *testing.T) {
 func TestLogicalOperators(t *testing.T) {
 	t.Run("and with multiple expressions", func(t *testing.T) {
 		and := And(
-			Eq(Property("a"), Number(1)),
-			Eq(Property("b"), Number(2)),
-			Eq(Property("c"), Number(3)),
+			Eq("a", 1),
+			Eq("b", 2),
+			Eq("c", 3),
 		)
 		assert.Len(t, and.Args, 3)
 	})
 
 	t.Run("or with multiple expressions", func(t *testing.T) {
 		or := Or(
-			Eq(Property("status"), String("active")),
-			Eq(Property("status"), String("pending")),
+			Eq("status", "active"),
+			Eq("status", "pending"),
 		)
 		assert.Len(t, or.Args, 2)
 	})
 
 	t.Run("not", func(t *testing.T) {
-		not := Not(Eq(Property("deleted"), Boolean(true)))
+		not := Not(Eq("deleted", true))
 		assert.NotNil(t, not.Arg)
 	})
 }
@@ -339,7 +431,7 @@ func TestArrayOperators(t *testing.T) {
 func TestFilterBuilder(t *testing.T) {
 	t.Run("basic filter", func(t *testing.T) {
 		f := NewFilterBuilder().
-			Where(Lt(Property("eo:cloud_cover"), Number(10.0))).
+			Where(Lt("eo:cloud_cover", 10.0)).
 			Build()
 
 		require.NotNil(t, f)
@@ -348,8 +440,8 @@ func TestFilterBuilder(t *testing.T) {
 
 	t.Run("chained and conditions", func(t *testing.T) {
 		f := NewFilterBuilder().
-			Where(Lt(Property("eo:cloud_cover"), Number(10.0))).
-			And(Gt(Property("quality"), Number(80))).
+			Where(Lt("eo:cloud_cover", 10.0)).
+			And(Gt("quality", 80)).
 			Build()
 
 		require.NotNil(t, f)
@@ -360,10 +452,10 @@ func TestFilterBuilder(t *testing.T) {
 
 	t.Run("with or branch", func(t *testing.T) {
 		f := NewFilterBuilder().
-			Where(Eq(Property("status"), String("active"))).
+			Where(Eq("status", "active")).
 			Or(
-				Eq(Property("type"), String("image")),
-				Eq(Property("type"), String("video")),
+				Eq("type", "image"),
+				Eq("type", "video"),
 			).
 			Build()
 
@@ -379,7 +471,7 @@ func TestFilterBuilder(t *testing.T) {
 func TestFilterJSONSerialization(t *testing.T) {
 	t.Run("simple comparison", func(t *testing.T) {
 		f := NewFilterBuilder().
-			Where(Lt(Property("eo:cloud_cover"), Number(10))).
+			Where(Lt("eo:cloud_cover", 10)).
 			Build()
 
 		data, err := json.Marshal(f)
@@ -391,7 +483,7 @@ func TestFilterJSONSerialization(t *testing.T) {
 
 	t.Run("complex filter", func(t *testing.T) {
 		f := NewFilterBuilder().
-			Where(Lt(Property("eo:cloud_cover"), Number(10))).
+			Where(Lt("eo:cloud_cover", 10)).
 			And(SIntersects(BBox(-122.5, 37.5, -122.0, 38.0))).
 			And(TIntersects(Property("datetime"), IntervalFromStrings("2023-01-01T00:00:00Z", "2023-12-31T23:59:59Z"))).
 			Build()
@@ -414,7 +506,7 @@ func TestFilterJSONSerialization(t *testing.T) {
 
 	t.Run("in list filter", func(t *testing.T) {
 		f := NewFilterBuilder().
-			Where(In(Property("collection"), String("sentinel-1"), String("sentinel-2"))).
+			Where(In("collection", "sentinel-1", "sentinel-2")).
 			Build()
 
 		data, err := json.Marshal(f)
@@ -427,11 +519,11 @@ func TestRealWorldScenarios(t *testing.T) {
 	t.Run("satellite imagery search", func(t *testing.T) {
 		// Find low-cloud Sentinel-2 imagery over San Francisco in 2023
 		f := NewFilterBuilder().
-			Where(Eq(Property("collection"), String("sentinel-2"))).
-			And(Lt(Property("eo:cloud_cover"), Number(15))).
+			Where(Eq("collection", "sentinel-2")).
+			And(Lt("eo:cloud_cover", 15)).
 			And(TIntersects(Property("datetime"), IntervalFromStrings("2023-01-01T00:00:00Z", "2023-12-31T23:59:59Z"))).
 			And(SIntersects(BBox(-122.5, 37.7, -122.35, 37.85))).
-			And(Eq(Property("platform"), String("sentinel-2a"))).
+			And(Eq("platform", "sentinel-2a")).
 			Build()
 
 		require.NotNil(t, f)
@@ -447,8 +539,8 @@ func TestRealWorldScenarios(t *testing.T) {
 
 	t.Run("exclude deleted items", func(t *testing.T) {
 		f := NewFilterBuilder().
-			Where(Eq(Property("collection"), String("my-collection"))).
-			And(Not(Eq(Property("deleted"), Boolean(true)))).
+			Where(Eq("collection", "my-collection")).
+			And(Not(Eq("deleted", true))).
 			Build()
 
 		require.NotNil(t, f)
@@ -456,7 +548,7 @@ func TestRealWorldScenarios(t *testing.T) {
 
 	t.Run("search by id pattern", func(t *testing.T) {
 		f := NewFilterBuilder().
-			Where(Like(Property("id"), String("S2A_MSIL2A_%"))).
+			Where(Like("id", "S2A_MSIL2A_%")).
 			And(TAfter(Property("datetime"), Timestamp("2023-06-01T00:00:00Z"))).
 			Build()
 

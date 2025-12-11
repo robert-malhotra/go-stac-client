@@ -1,0 +1,134 @@
+package stac
+
+import "encoding/json"
+
+// Catalog represents a STAC Catalog with support for foreign members.
+// A Catalog is the root entry point for a STAC API or static catalog,
+// providing links to collections, items, and other catalogs.
+type Catalog struct {
+	Type           string   `json:"type,omitempty"`
+	Version        string   `json:"stac_version"`
+	Extensions     []string `json:"stac_extensions,omitempty"`
+	ID             string   `json:"id"`
+	Title          string   `json:"title,omitempty"`
+	Description    string   `json:"description"`
+	Links          []*Link  `json:"links"`
+	ConformsTo     []string `json:"conformsTo,omitempty"` // STAC API conformance classes
+
+	// AdditionalFields holds foreign members not defined in the STAC spec.
+	AdditionalFields map[string]any `json:"-"`
+}
+
+var knownCatalogFields = map[string]bool{
+	"type": true, "stac_version": true, "stac_extensions": true,
+	"id": true, "title": true, "description": true, "links": true,
+	"conformsTo": true,
+}
+
+// UnmarshalJSON implements custom unmarshaling to capture foreign members.
+func (cat *Catalog) UnmarshalJSON(data []byte) error {
+	type catalogAlias Catalog
+	var aux catalogAlias
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*cat = Catalog(aux)
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	cat.AdditionalFields = make(map[string]any)
+	for key, val := range raw {
+		if !knownCatalogFields[key] {
+			var decoded any
+			if err := json.Unmarshal(val, &decoded); err != nil {
+				continue
+			}
+			cat.AdditionalFields[key] = decoded
+		}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements custom marshaling to include foreign members.
+func (cat Catalog) MarshalJSON() ([]byte, error) {
+	type catalogAlias Catalog
+	aux := catalogAlias(cat)
+
+	data, err := json.Marshal(aux)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(cat.AdditionalFields) == 0 {
+		return data, nil
+	}
+
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return nil, err
+	}
+
+	for key, val := range cat.AdditionalFields {
+		encoded, err := json.Marshal(val)
+		if err != nil {
+			return nil, err
+		}
+		obj[key] = encoded
+	}
+
+	return json.Marshal(obj)
+}
+
+// GetLink returns the first link with the specified rel type, or nil if not found.
+func (cat *Catalog) GetLink(rel string) *Link {
+	for _, link := range cat.Links {
+		if link.Rel == rel {
+			return link
+		}
+	}
+	return nil
+}
+
+// GetLinks returns all links with the specified rel type.
+func (cat *Catalog) GetLinks(rel string) []*Link {
+	var result []*Link
+	for _, link := range cat.Links {
+		if link.Rel == rel {
+			result = append(result, link)
+		}
+	}
+	return result
+}
+
+// HasConformance checks if the catalog conforms to a specific conformance class.
+func (cat *Catalog) HasConformance(conformanceClass string) bool {
+	for _, c := range cat.ConformsTo {
+		if c == conformanceClass {
+			return true
+		}
+	}
+	return false
+}
+
+// Common STAC API conformance class URIs
+const (
+	ConformanceCore           = "https://api.stacspec.org/v1.0.0/core"
+	ConformanceCollections    = "https://api.stacspec.org/v1.0.0/collections"
+	ConformanceFeatures       = "https://api.stacspec.org/v1.0.0/ogcapi-features"
+	ConformanceItemSearch     = "https://api.stacspec.org/v1.0.0/item-search"
+	ConformanceFilter         = "https://api.stacspec.org/v1.0.0/item-search#filter"
+	ConformanceSort           = "https://api.stacspec.org/v1.0.0/item-search#sort"
+	ConformanceFields         = "https://api.stacspec.org/v1.0.0/item-search#fields"
+	ConformanceQuery          = "https://api.stacspec.org/v1.0.0/item-search#query"
+	ConformanceContext        = "https://api.stacspec.org/v1.0.0/item-search#context"
+	ConformanceCQL2Text       = "http://www.opengis.net/spec/cql2/1.0/conf/cql2-text"
+	ConformanceCQL2JSON       = "http://www.opengis.net/spec/cql2/1.0/conf/cql2-json"
+	ConformanceBasicCQL2      = "http://www.opengis.net/spec/cql2/1.0/conf/basic-cql2"
+	ConformanceAdvancedCQL2   = "http://www.opengis.net/spec/cql2/1.0/conf/advanced-comparison-operators"
+	ConformanceSpatialCQL2    = "http://www.opengis.net/spec/cql2/1.0/conf/basic-spatial-operators"
+	ConformanceTemporalCQL2   = "http://www.opengis.net/spec/cql2/1.0/conf/temporal-operators"
+)

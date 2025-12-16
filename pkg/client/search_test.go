@@ -76,8 +76,8 @@ func TestClient_SearchSimple(t *testing.T) {
 	items, err := collect(seq)
 	require.NoError(t, err)
 	require.Len(t, items, 2)
-	assert.Equal(t, "item-1", items[0].Id)
-	assert.Equal(t, "item-2", items[1].Id)
+	assert.Equal(t, "item-1", items[0].ID)
+	assert.Equal(t, "item-2", items[1].ID)
 	assert.Len(t, requestLog, 2)
 }
 
@@ -125,8 +125,8 @@ func TestClient_SearchCQL2(t *testing.T) {
 	items, err := collect(seq)
 	require.NoError(t, err)
 	require.Len(t, items, 2)
-	assert.Equal(t, "page-1", items[0].Id)
-	assert.Equal(t, "page-2", items[1].Id)
+	assert.Equal(t, "page-1", items[0].ID)
+	assert.Equal(t, "page-2", items[1].ID)
 	assert.Equal(t, 2, hitCount)
 }
 

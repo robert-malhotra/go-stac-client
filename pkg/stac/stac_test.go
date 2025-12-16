@@ -26,7 +26,7 @@ func TestItemForeignMembers(t *testing.T) {
 		err := json.Unmarshal([]byte(jsonData), &item)
 		require.NoError(t, err)
 
-		assert.Equal(t, "test-item", item.Id)
+		assert.Equal(t, "test-item", item.ID)
 		assert.Equal(t, "1.0.0", item.Version)
 		assert.Contains(t, item.AdditionalFields, "custom_field")
 		assert.Equal(t, "custom_value", item.AdditionalFields["custom_field"])
@@ -34,11 +34,10 @@ func TestItemForeignMembers(t *testing.T) {
 		assert.Equal(t, float64(42), item.AdditionalFields["another_field"])
 	})
 
-	t.Run("marshal includes foreign members", func(t *testing.T) {
+	t.Run("marshal includes foreign members and type", func(t *testing.T) {
 		item := Item{
-			Type:       "Feature",
 			Version:    "1.0.0",
-			Id:         "test-item",
+			ID:         "test-item",
 			Geometry:   map[string]any{"type": "Point", "coordinates": []float64{0, 0}},
 			Properties: map[string]any{"datetime": "2023-01-01T00:00:00Z"},
 			Links:      []*Link{},
@@ -55,6 +54,7 @@ func TestItemForeignMembers(t *testing.T) {
 		var decoded map[string]any
 		require.NoError(t, json.Unmarshal(data, &decoded))
 
+		assert.Equal(t, "Feature", decoded["type"]) // Type is always included
 		assert.Equal(t, "custom_value", decoded["custom_field"])
 		assert.Equal(t, float64(42), decoded["another_field"])
 	})
@@ -80,9 +80,27 @@ func TestItemForeignMembers(t *testing.T) {
 		var decoded map[string]any
 		require.NoError(t, json.Unmarshal(output, &decoded))
 
+		assert.Equal(t, "Feature", decoded["type"]) // Type preserved
 		assert.Contains(t, decoded, "foreign_member")
 		fm := decoded["foreign_member"].(map[string]any)
 		assert.Equal(t, "value", fm["nested"])
+	})
+
+	t.Run("rejects invalid type", func(t *testing.T) {
+		jsonData := `{
+			"type": "InvalidType",
+			"stac_version": "1.0.0",
+			"id": "test-item",
+			"geometry": null,
+			"properties": {},
+			"links": [],
+			"assets": {}
+		}`
+
+		var item Item
+		err := json.Unmarshal([]byte(jsonData), &item)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid item type")
 	})
 }
 
@@ -103,17 +121,16 @@ func TestCollectionForeignMembers(t *testing.T) {
 		err := json.Unmarshal([]byte(jsonData), &col)
 		require.NoError(t, err)
 
-		assert.Equal(t, "test-collection", col.Id)
+		assert.Equal(t, "test-collection", col.ID)
 		assert.Contains(t, col.AdditionalFields, "custom_extension")
 		ce := col.AdditionalFields["custom_extension"].(map[string]any)
 		assert.Equal(t, true, ce["enabled"])
 	})
 
-	t.Run("marshal includes foreign members", func(t *testing.T) {
+	t.Run("marshal includes foreign members and type", func(t *testing.T) {
 		col := Collection{
-			Type:        "Collection",
 			Version:     "1.0.0",
-			Id:          "test-collection",
+			ID:          "test-collection",
 			Description: "Test",
 			License:     "MIT",
 			Extent:      &Extent{},
@@ -129,7 +146,25 @@ func TestCollectionForeignMembers(t *testing.T) {
 		var decoded map[string]any
 		require.NoError(t, json.Unmarshal(data, &decoded))
 
+		assert.Equal(t, "Collection", decoded["type"]) // Type is always included
 		assert.Contains(t, decoded, "custom_extension")
+	})
+
+	t.Run("rejects invalid type", func(t *testing.T) {
+		jsonData := `{
+			"type": "InvalidType",
+			"stac_version": "1.0.0",
+			"id": "test-collection",
+			"description": "Test",
+			"license": "MIT",
+			"extent": {},
+			"links": []
+		}`
+
+		var col Collection
+		err := json.Unmarshal([]byte(jsonData), &col)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid collection type")
 	})
 }
 

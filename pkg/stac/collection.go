@@ -1,13 +1,19 @@
 package stac
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
+
+// CollectionType is the STAC type for Collections (always "Collection").
+const CollectionType = "Collection"
 
 // Collection represents a STAC Collection with support for foreign members.
+// The Type field is implicit and always "Collection" per the STAC specification.
 type Collection struct {
-	Type        string            `json:"type,omitempty"`
 	Version     string            `json:"stac_version"`
 	Extensions  []string          `json:"stac_extensions,omitempty"`
-	Id          string            `json:"id"`
+	ID          string            `json:"id"`
 	Title       string            `json:"title,omitempty"`
 	Description string            `json:"description"`
 	Keywords    []string          `json:"keywords,omitempty"`
@@ -43,6 +49,14 @@ func (col *Collection) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	// Validate type field if present
+	if typeVal, ok := raw["type"]; ok {
+		var t string
+		if err := json.Unmarshal(typeVal, &t); err == nil && t != "" && t != CollectionType {
+			return fmt.Errorf("invalid collection type: expected %q, got %q", CollectionType, t)
+		}
+	}
+
 	col.AdditionalFields = make(map[string]any)
 	for key, val := range raw {
 		if !knownCollectionFields[key] {
@@ -58,6 +72,7 @@ func (col *Collection) UnmarshalJSON(data []byte) error {
 }
 
 // MarshalJSON implements custom marshaling to include foreign members.
+// The type field is always set to "Collection" per the STAC specification.
 func (col Collection) MarshalJSON() ([]byte, error) {
 	type collectionAlias Collection
 	aux := collectionAlias(col)
@@ -67,15 +82,16 @@ func (col Collection) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 
-	if len(col.AdditionalFields) == 0 {
-		return data, nil
-	}
-
 	var obj map[string]json.RawMessage
 	if err := json.Unmarshal(data, &obj); err != nil {
 		return nil, err
 	}
 
+	// Always include type field
+	typeJSON, _ := json.Marshal(CollectionType)
+	obj["type"] = typeJSON
+
+	// Add foreign members
 	for key, val := range col.AdditionalFields {
 		encoded, err := json.Marshal(val)
 		if err != nil {
@@ -85,4 +101,25 @@ func (col Collection) MarshalJSON() ([]byte, error) {
 	}
 
 	return json.Marshal(obj)
+}
+
+// GetLink returns the first link with the specified rel type, or nil if not found.
+func (col *Collection) GetLink(rel string) *Link {
+	for _, link := range col.Links {
+		if link.Rel == rel {
+			return link
+		}
+	}
+	return nil
+}
+
+// GetLinks returns all links with the specified rel type.
+func (col *Collection) GetLinks(rel string) []*Link {
+	var result []*Link
+	for _, link := range col.Links {
+		if link.Rel == rel {
+			result = append(result, link)
+		}
+	}
+	return result
 }

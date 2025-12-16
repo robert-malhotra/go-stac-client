@@ -11,7 +11,7 @@ import (
 
 func FormatItemSummary(item *stac.Item) string {
 	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("[yellow]ID: [white]%s\n", item.Id))
+	builder.WriteString(fmt.Sprintf("[yellow]ID: [white]%s\n", item.ID))
 	if dt, ok := item.Properties["datetime"].(string); ok {
 		builder.WriteString(fmt.Sprintf("[yellow]Datetime: [white]%s\n", dt))
 	}
@@ -105,7 +105,10 @@ func FormatAssetDetailBlock(key string, asset *stac.Asset) string {
 	if len(asset.Roles) > 0 {
 		write("Roles", strings.Join(asset.Roles, ", "))
 	}
-	write("Created", asset.Created)
+	// Check for created in AdditionalFields (extension field)
+	if created, ok := asset.AdditionalFields["created"].(string); ok {
+		write("Created", created)
+	}
 	write("Href", asset.Href)
 
 	text := strings.TrimRight(builder.String(), "\n")

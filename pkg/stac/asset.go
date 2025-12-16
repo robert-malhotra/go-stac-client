@@ -8,16 +8,15 @@ type Asset struct {
 	Href        string   `json:"href"`
 	Title       string   `json:"title,omitempty"`
 	Description string   `json:"description,omitempty"`
-	Created     string   `json:"created,omitempty"`
 	Roles       []string `json:"roles,omitempty"`
 
-	// AdditionalFields holds foreign members from extensions (e.g., "eo:bands").
+	// AdditionalFields holds foreign members from extensions (e.g., "eo:bands", "created").
 	AdditionalFields map[string]any `json:"-"`
 }
 
 var knownAssetFields = map[string]bool{
 	"type": true, "href": true, "title": true, "description": true,
-	"created": true, "roles": true,
+	"roles": true,
 }
 
 // UnmarshalJSON implements custom unmarshaling to capture foreign members.

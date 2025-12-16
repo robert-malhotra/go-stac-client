@@ -640,7 +640,7 @@ func (t *TUI) exitSearchResults() {
 func (t *TUI) ensureSearchSelectionsValid() {
 	valid := make(map[string]struct{}, len(t.cols))
 	for _, col := range t.cols {
-		valid[col.Id] = struct{}{}
+		valid[col.ID] = struct{}{}
 	}
 
 	filtered := t.searchSelectedOrder[:0]
@@ -674,14 +674,14 @@ func (t *TUI) searchCollectionListTexts(col *stac.Collection) (string, string) {
 	if col == nil {
 		return "", ""
 	}
-	checked := t.searchSelectedCollections != nil && t.searchSelectedCollections[col.Id]
+	checked := t.searchSelectedCollections != nil && t.searchSelectedCollections[col.ID]
 	indicator := "[ ]"
 	if checked {
 		indicator = "[green][x][white]"
 	}
 	label := strings.TrimSpace(col.Title)
 	if label == "" {
-		label = col.Id
+		label = col.ID
 	}
 	main := fmt.Sprintf("%s %s", indicator, label)
 	return main, ""
@@ -817,7 +817,7 @@ func (t *TUI) toggleSearchCollection(index int) {
 	}
 
 	col := t.cols[index]
-	id := col.Id
+	id := col.ID
 	if t.searchSelectedCollections[id] {
 		delete(t.searchSelectedCollections, id)
 		for i, existing := range t.searchSelectedOrder {
@@ -886,9 +886,9 @@ func (t *TUI) selectedSearchCollectionIDs() []string {
 		}
 	}
 	for _, col := range t.cols {
-		if t.searchSelectedCollections[col.Id] {
-			if _, ok := seen[col.Id]; !ok {
-				ids = append(ids, col.Id)
+		if t.searchSelectedCollections[col.ID] {
+			if _, ok := seen[col.ID]; !ok {
+				ids = append(ids, col.ID)
 			}
 		}
 	}
@@ -943,7 +943,7 @@ func (t *TUI) searchDefaultCollectionIndex() int {
 
 func (t *TUI) indexOfCollectionID(id string) int {
 	for i, col := range t.cols {
-		if col.Id == id {
+		if col.ID == id {
 			return i
 		}
 	}
@@ -1126,7 +1126,7 @@ func (t *TUI) fetchCollections(url string, auth authConfig) {
 				for _, col := range t.cols {
 					collection := col
 					t.collectionsList.AddItem(col.Title, "", 0, func() {
-						go t.fetchItems(collection.Id)
+						go t.fetchItems(collection.ID)
 					})
 				}
 			})
@@ -1254,7 +1254,7 @@ func (t *TUI) loadNextPage() {
 
 			for _, it := range batch {
 				item := it
-				t.itemsList.AddItem(item.Id, "", 0, func() {
+				t.itemsList.AddItem(item.ID, "", 0, func() {
 					t.showItemDetail(item)
 				})
 			}

@@ -149,7 +149,7 @@ func TestClient_GetItem(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		it, err := cli.GetItem(context.Background(), "dummy", "test-item-001")
 		require.NoError(t, err)
-		assert.Equal(t, "test-item-001", it.Id)
+		assert.Equal(t, "test-item-001", it.ID)
 	})
 
 	t.Run("not-found", func(t *testing.T) {
@@ -174,15 +174,15 @@ func TestClient_GetItems(t *testing.T) {
 		items, err := collect(cli.GetItems(context.Background(), "single-page"))
 		require.NoError(t, err)
 		require.Len(t, items, 1)
-		assert.Equal(t, "item-page1-001", items[0].Id)
+		assert.Equal(t, "item-page1-001", items[0].ID)
 	})
 
 	t.Run("multiple pages", func(t *testing.T) {
 		items, err := collect(cli.GetItems(context.Background(), "test-collection-paginated"))
 		require.NoError(t, err)
 		require.Len(t, items, 2)
-		assert.Equal(t, "item-page1-001", items[0].Id)
-		assert.Equal(t, "item-page2-001", items[1].Id)
+		assert.Equal(t, "item-page1-001", items[0].ID)
+		assert.Equal(t, "item-page2-001", items[1].ID)
 	})
 
 	t.Run("decode error", func(t *testing.T) {

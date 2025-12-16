@@ -1,13 +1,19 @@
 package stac
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
+
+// ItemType is the GeoJSON type for STAC Items (always "Feature").
+const ItemType = "Feature"
 
 // Item represents a STAC Item (GeoJSON Feature) with support for foreign members.
+// The Type field is implicit and always "Feature" per the GeoJSON/STAC specification.
 type Item struct {
-	Type       string            `json:"type,omitempty"`
 	Version    string            `json:"stac_version"`
 	Extensions []string          `json:"stac_extensions,omitempty"`
-	Id         string            `json:"id"`
+	ID         string            `json:"id"`
 	Geometry   any               `json:"geometry"`
 	Bbox       []float64         `json:"bbox,omitempty"`
 	Properties map[string]any    `json:"properties"`
@@ -39,6 +45,14 @@ func (item *Item) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	// Validate type field if present
+	if typeVal, ok := raw["type"]; ok {
+		var t string
+		if err := json.Unmarshal(typeVal, &t); err == nil && t != "" && t != ItemType {
+			return fmt.Errorf("invalid item type: expected %q, got %q", ItemType, t)
+		}
+	}
+
 	item.AdditionalFields = make(map[string]any)
 	for key, val := range raw {
 		if !knownItemFields[key] {
@@ -54,6 +68,7 @@ func (item *Item) UnmarshalJSON(data []byte) error {
 }
 
 // MarshalJSON implements custom marshaling to include foreign members.
+// The type field is always set to "Feature" per the GeoJSON/STAC specification.
 func (item Item) MarshalJSON() ([]byte, error) {
 	type itemAlias Item
 	aux := itemAlias(item)
@@ -63,15 +78,16 @@ func (item Item) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 
-	if len(item.AdditionalFields) == 0 {
-		return data, nil
-	}
-
 	var obj map[string]json.RawMessage
 	if err := json.Unmarshal(data, &obj); err != nil {
 		return nil, err
 	}
 
+	// Always include type field
+	typeJSON, _ := json.Marshal(ItemType)
+	obj["type"] = typeJSON
+
+	// Add foreign members
 	for key, val := range item.AdditionalFields {
 		encoded, err := json.Marshal(val)
 		if err != nil {
@@ -81,4 +97,25 @@ func (item Item) MarshalJSON() ([]byte, error) {
 	}
 
 	return json.Marshal(obj)
+}
+
+// GetLink returns the first link with the specified rel type, or nil if not found.
+func (item *Item) GetLink(rel string) *Link {
+	for _, link := range item.Links {
+		if link.Rel == rel {
+			return link
+		}
+	}
+	return nil
+}
+
+// GetLinks returns all links with the specified rel type.
+func (item *Item) GetLinks(rel string) []*Link {
+	var result []*Link
+	for _, link := range item.Links {
+		if link.Rel == rel {
+			result = append(result, link)
+		}
+	}
+	return result
 }

@@ -79,6 +79,8 @@ type TUI struct {
 	jsonViewer *jsonViewer
 
 	currentAuth authConfig
+
+	filterBuilder *filterBuilder
 }
 
 // configureStyles sets the tview global styles for the TUI.

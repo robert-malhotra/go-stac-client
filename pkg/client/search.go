@@ -20,12 +20,17 @@ import (
 
 type SearchParams struct {
 	Collections []string       `json:"collections,omitempty"`
+	IDs         []string       `json:"ids,omitempty"`         // Filter by item IDs
 	Bbox        []float64      `json:"bbox,omitempty"`
+	Intersects  any            `json:"intersects,omitempty"`  // GeoJSON geometry for spatial filtering
 	Datetime    string         `json:"datetime,omitempty"`
 	Query       map[string]any `json:"query,omitempty"`
 	Limit       int            `json:"limit,omitempty"`
 	SortBy      []SortField    `json:"sortby,omitempty"`
 	Fields      *FieldsFilter  `json:"fields,omitempty"`
+	Filter      any            `json:"filter,omitempty"`      // CQL2 filter expression
+	FilterLang  string         `json:"filter-lang,omitempty"` // "cql2-json" or "cql2-text"
+	FilterCRS   string         `json:"filter-crs,omitempty"`  // CRS for filter geometry
 }
 
 type SortField struct {
@@ -50,6 +55,9 @@ func (c *Client) SearchSimple(ctx context.Context, params SearchParams) iter.Seq
 	q := url.Values{}
 	for _, coll := range params.Collections {
 		q.Add("collections", coll)
+	}
+	if len(params.IDs) > 0 {
+		q.Set("ids", strings.Join(params.IDs, ","))
 	}
 
 	var marshalErr error

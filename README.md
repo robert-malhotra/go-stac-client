@@ -51,7 +51,7 @@ func main() {
         if err != nil {
             panic(err)
         }
-        fmt.Println(col.Id)
+        fmt.Println(col.ID)
     }
 
     // Collect search results (GET)

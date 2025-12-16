@@ -85,7 +85,7 @@ func TestClient_GetCollection(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		col, err := cli.GetCollection(context.Background(), "sentinel-2")
 		require.NoError(t, err)
-		assert.Equal(t, "sentinel-2", col.Id)
+		assert.Equal(t, "sentinel-2", col.ID)
 	})
 
 	t.Run("empty ID", func(t *testing.T) {
@@ -119,8 +119,8 @@ func TestClient_GetCollections(t *testing.T) {
 		cols, err := collectCollections(cli.GetCollections(context.Background()))
 		require.NoError(t, err)
 		require.Len(t, cols, 2)
-		assert.Equal(t, "sentinel-2", cols[0].Id)
-		assert.Equal(t, "landsat-8", cols[1].Id)
+		assert.Equal(t, "sentinel-2", cols[0].ID)
+		assert.Equal(t, "landsat-8", cols[1].ID)
 	})
 
 	t.Run("early stop", func(t *testing.T) {
@@ -167,7 +167,7 @@ func TestLive(t *testing.T) {
 				return false
 			}
 			count++
-			t.Logf("%s collection[%d]=%s", base, count, col.Id)
+			t.Logf("%s collection[%d]=%s", base, count, col.ID)
 			return count < 5
 		})
 		cancel()

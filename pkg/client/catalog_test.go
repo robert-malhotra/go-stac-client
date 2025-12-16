@@ -47,7 +47,6 @@ func TestClient_GetCatalog(t *testing.T) {
 		cat, err := client.GetCatalog(context.Background())
 		require.NoError(t, err)
 
-		assert.Equal(t, "Catalog", cat.Type)
 		assert.Equal(t, "1.0.0", cat.Version)
 		assert.Equal(t, "test-catalog", cat.ID)
 		assert.Equal(t, "Test Catalog", cat.Title)

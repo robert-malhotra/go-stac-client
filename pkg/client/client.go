@@ -43,6 +43,7 @@ type Client struct {
 	httpClient  *http.Client
 	nextHandler NextHandler
 	middleware  []Middleware
+	userAgent   string
 }
 
 // -----------------------------------------------------------------------------
@@ -67,6 +68,11 @@ func WithNextHandler(h NextHandler) ClientOption {
 // WithMiddleware registers one or more request-middleware functions.
 func WithMiddleware(mw ...Middleware) ClientOption {
 	return func(c *Client) { c.middleware = append(c.middleware, mw...) }
+}
+
+// WithUserAgent sets a custom User-Agent header for all requests.
+func WithUserAgent(ua string) ClientOption {
+	return func(c *Client) { c.userAgent = ua }
 }
 
 // NewClient creates a new STAC client.
@@ -315,6 +321,16 @@ func (c *Client) doRequest(ctx context.Context, method, rawURL string, body io.R
 	req, err := http.NewRequestWithContext(ctx, method, rawURL, body)
 	if err != nil {
 		return nil, fmt.Errorf("error creating request for %s: %w", rawURL, err)
+	}
+
+	// Set Content-Type for requests with body
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	// Set User-Agent if configured
+	if c.userAgent != "" {
+		req.Header.Set("User-Agent", c.userAgent)
 	}
 
 	// Apply all registered middleware in order.

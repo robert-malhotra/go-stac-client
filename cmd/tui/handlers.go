@@ -49,19 +49,19 @@ func (t *TUI) onInputCapture(event *tcell.EventKey) *tcell.EventKey {
 				index := t.collectionsList.GetCurrentItem()
 				if index >= 0 && index < len(t.cols) {
 					col := t.cols[index]
-					t.showJSON(fmt.Sprintf("Collection %s", col.Id), col)
+					t.showJSON(fmt.Sprintf("Collection %s", col.ID), col)
 				}
 				return nil
 			case pageItems:
 				index := t.itemsList.GetCurrentItem()
 				if index >= 0 && index < len(t.items) {
 					item := t.items[index]
-					t.showJSON(fmt.Sprintf("Item %s", item.Id), item)
+					t.showJSON(fmt.Sprintf("Item %s", item.ID), item)
 				}
 				return nil
 			case pageItemDetail:
 				if t.currentItem != nil {
-					t.showJSON(fmt.Sprintf("Item %s", t.currentItem.Id), t.currentItem)
+					t.showJSON(fmt.Sprintf("Item %s", t.currentItem.ID), t.currentItem)
 				}
 				return nil
 			}

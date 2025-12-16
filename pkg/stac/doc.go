@@ -10,7 +10,7 @@
 //	json.Unmarshal(data, &item)
 //
 //	// Access standard fields
-//	fmt.Println(item.Id)
+//	fmt.Println(item.ID)
 //
 //	// Access foreign members
 //	if val, ok := item.AdditionalFields["custom_field"]; ok {

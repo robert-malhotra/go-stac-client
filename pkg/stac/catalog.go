@@ -1,12 +1,18 @@
 package stac
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
+
+// CatalogType is the STAC type for Catalogs (always "Catalog").
+const CatalogType = "Catalog"
 
 // Catalog represents a STAC Catalog with support for foreign members.
 // A Catalog is the root entry point for a STAC API or static catalog,
 // providing links to collections, items, and other catalogs.
+// The Type field is implicit and always "Catalog" per the STAC specification.
 type Catalog struct {
-	Type           string   `json:"type,omitempty"`
 	Version        string   `json:"stac_version"`
 	Extensions     []string `json:"stac_extensions,omitempty"`
 	ID             string   `json:"id"`
@@ -39,6 +45,14 @@ func (cat *Catalog) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	// Validate type field if present
+	if typeVal, ok := raw["type"]; ok {
+		var t string
+		if err := json.Unmarshal(typeVal, &t); err == nil && t != "" && t != CatalogType {
+			return fmt.Errorf("invalid catalog type: expected %q, got %q", CatalogType, t)
+		}
+	}
+
 	cat.AdditionalFields = make(map[string]any)
 	for key, val := range raw {
 		if !knownCatalogFields[key] {
@@ -54,6 +68,7 @@ func (cat *Catalog) UnmarshalJSON(data []byte) error {
 }
 
 // MarshalJSON implements custom marshaling to include foreign members.
+// The type field is always set to "Catalog" per the STAC specification.
 func (cat Catalog) MarshalJSON() ([]byte, error) {
 	type catalogAlias Catalog
 	aux := catalogAlias(cat)
@@ -63,15 +78,16 @@ func (cat Catalog) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 
-	if len(cat.AdditionalFields) == 0 {
-		return data, nil
-	}
-
 	var obj map[string]json.RawMessage
 	if err := json.Unmarshal(data, &obj); err != nil {
 		return nil, err
 	}
 
+	// Always include type field
+	typeJSON, _ := json.Marshal(CatalogType)
+	obj["type"] = typeJSON
+
+	// Add foreign members
 	for key, val := range cat.AdditionalFields {
 		encoded, err := json.Marshal(val)
 		if err != nil {

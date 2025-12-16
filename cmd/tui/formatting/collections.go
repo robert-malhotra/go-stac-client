@@ -29,7 +29,7 @@ func FormatCollectionDetails(col *stac.Collection) string {
 	}
 
 	writeField("Title", col.Title)
-	writeField("ID", col.Id)
+	writeField("ID", col.ID)
 	writeField("Version", col.Version)
 	writeField("Description", col.Description)
 	writeField("License", col.License)
